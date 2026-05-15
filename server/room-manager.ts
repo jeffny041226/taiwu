@@ -60,6 +60,8 @@ export function createRoom(roomId: string, player: Player, isPractice = false): 
     leftAction: null,
     rightAction: null,
     actionTimer: null,
+    selectionTimer: null,
+    selectionStartTime: 0,
     createdAt: Date.now(),
   };
   rooms.set(roomId, room);
@@ -163,6 +165,19 @@ export function finishRoom(room: Room): void {
   if (room.actionTimer) {
     clearTimeout(room.actionTimer);
     room.actionTimer = null;
+  }
+  if (room.selectionTimer) {
+    clearTimeout(room.selectionTimer);
+    room.selectionTimer = null;
+  }
+}
+
+/** 清除选蛐蛐倒计时 */
+export function clearSelectionTimer(roomId: string): void {
+  const room = getRoom(roomId);
+  if (room?.selectionTimer) {
+    clearTimeout(room.selectionTimer);
+    room.selectionTimer = null;
   }
 }
 

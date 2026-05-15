@@ -4,7 +4,7 @@ import { getAllRooms, finishRoom, scheduleCleanup } from "./room-manager";
 
 const PORT = parseInt(process.env.WS_PORT || "3001", 10);
 
-const wss = new WebSocketServer({ port: PORT });
+const wss = new WebSocketServer({ port: PORT, host: "0.0.0.0" });
 
 console.log(`[WS Server] 斗蛐蛐对战服务器启动 -> ws://localhost:${PORT}`);
 

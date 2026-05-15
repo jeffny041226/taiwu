@@ -13,6 +13,7 @@ const btnClass = "w-[342px] h-[50px] rounded-[10px] border border-[var(--color-g
 type Action = "idle" | "creating" | "joining" | "practice" | "error";
 
 export default function HomePage() {
+  const [myUid] = useState(() => `user-${Math.random().toString(36).slice(2, 8)}`);
   const [showJoinInput, setShowJoinInput] = useState(false);
   const [roomCode, setRoomCode] = useState("");
   const [action, setAction] = useState<Action>("idle");
@@ -21,16 +22,24 @@ export default function HomePage() {
   const [isPracticeMode, setIsPracticeMode] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
 
-  const getWs = () => {
-    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
-      const protocol = window.location.protocol === "https:" ? "wss" : "ws";
-      const host = process.env.NEXT_PUBLIC_WS_HOST || window.location.hostname;
-      const port = process.env.NEXT_PUBLIC_WS_PORT || "3001";
-      const ws = new WebSocket(`${protocol}://${host}:${port}/ws/battle`);
-      wsRef.current = ws;
-      return ws;
+  const connectWs = () => {
+    const protocol = window.location.protocol === "https:" ? "wss" : "ws";
+    const envHost = process.env.NEXT_PUBLIC_WS_HOST;
+    const host = (envHost && envHost !== "localhost") ? envHost : window.location.hostname;
+    const port = process.env.NEXT_PUBLIC_WS_PORT || "3001";
+    const wsUrl = `${protocol}://${host}:${port}/ws/battle`;
+    wsRef.current?.close();
+    const ws = new WebSocket(wsUrl);
+    wsRef.current = ws;
+    return ws;
+  };
+
+  const sendWhenOpen = (ws: WebSocket, msg: string) => {
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.send(msg);
+    } else {
+      ws.onopen = () => { ws.send(msg); };
     }
-    return wsRef.current;
   };
 
   useEffect(() => { return () => { wsRef.current?.close(); }; }, []);
@@ -38,7 +47,7 @@ export default function HomePage() {
 
   const handleCreateRoom = () => {
     setAction("creating"); setErrorMsg("");
-    const ws = getWs();
+    const ws = connectWs();
     ws.onmessage = (e) => {
       try {
         const msg = JSON.parse(e.data);
@@ -51,12 +60,12 @@ export default function HomePage() {
       } catch {}
     };
     ws.onerror = () => { setErrorMsg("网络连接失败"); setAction("error"); setTimeout(() => setAction("idle"), 2000); };
-    ws.onopen = () => { ws.send(JSON.stringify({ type: "room:create", payload: { uid: "demo-user", nickName: "玩家" } })); };
+    sendWhenOpen(ws, JSON.stringify({ type: "room:create", payload: { uid: myUid, nickName: "玩家" } }));
   };
 
   const handlePractice = () => {
     setIsPracticeMode(true); setAction("practice"); setErrorMsg("");
-    const ws = getWs();
+    const ws = connectWs();
     ws.onmessage = (e) => {
       try {
         const msg = JSON.parse(e.data);
@@ -69,13 +78,13 @@ export default function HomePage() {
       } catch {}
     };
     ws.onerror = () => { setErrorMsg("网络连接失败"); setAction("error"); setTimeout(() => setAction("idle"), 2000); };
-    ws.onopen = () => { ws.send(JSON.stringify({ type: "room:practice", payload: { uid: "demo-user", nickName: "玩家" } })); };
+    sendWhenOpen(ws, JSON.stringify({ type: "room:practice", payload: { uid: myUid, nickName: "玩家" } }));
   };
 
   const handleJoinRoom = () => {
     if (roomCode.length !== 5) return;
     setAction("joining"); setErrorMsg("");
-    const ws = getWs();
+    const ws = connectWs();
     ws.onmessage = (e) => {
       try {
         const msg = JSON.parse(e.data);
@@ -87,18 +96,19 @@ export default function HomePage() {
         }
       } catch {}
     };
-    ws.onopen = () => { ws.send(JSON.stringify({ type: "room:join", payload: { roomId: roomCode.toUpperCase(), uid: "demo-user", nickName: "玩家" } })); };
+    ws.onerror = () => { setErrorMsg("网络连接失败"); setAction("error"); setTimeout(() => setAction("idle"), 2000); };
+    sendWhenOpen(ws, JSON.stringify({ type: "room:join", payload: { roomId: roomCode.toUpperCase(), uid: myUid, nickName: "玩家" } }));
   };
 
   useEffect(() => {
     if (createdRoomId) {
       if (isPracticeMode) {
-        window.location.href = `/battle/${createdRoomId}?mode=practice`;
+        window.location.href = `/battle/${createdRoomId}?mode=practice&uid=${myUid}`;
       } else {
-        window.location.href = `/room/${createdRoomId}`;
+        window.location.href = `/room/${createdRoomId}?uid=${myUid}`;
       }
     }
-  }, [createdRoomId, isPracticeMode]);
+  }, [createdRoomId, isPracticeMode, myUid]);
 
   const isLoading = action === "creating" || action === "joining" || action === "practice";
 

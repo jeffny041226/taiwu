@@ -54,6 +54,9 @@ export const ROOM_CLEANUP_DELAY = 5000;
 /** 动作选择超时 (ms，超时随机出招) */
 export const ACTION_TIMEOUT = 30000;
 
+/** 选蛐蛐倒计时 (秒) */
+export const CRICKET_SELECTION_TIMEOUT = 30;
+
 /** 品质颜色映射 */
 export const TIER_COLORS = {
   common:    { text: "#a0a0a0", bg: "rgba(160,160,160,0.15)" },

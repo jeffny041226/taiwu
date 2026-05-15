@@ -54,6 +54,9 @@ export interface Room {
   rightAction: Action | null;
   // 超时计时器
   actionTimer: ReturnType<typeof setTimeout> | null;
+  // 选蛐蛐倒计时
+  selectionTimer: ReturnType<typeof setTimeout> | null;
+  selectionStartTime: number;
   // 创建时间 (清理用)
   createdAt: number;
 }
