@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { TopBar } from "@/components/layout/TopBar";
 import { LoadingOverlay } from "@/components/game/LoadingOverlay";
 import { calcRoundResult, type CricketBattleState } from "@/lib/battle-calc";
+import { BLOCK_REDUCTION } from "@/config/game";
 
 type Action = "heavy_strike" | "feint" | "block" | "chirp";
 
@@ -286,12 +287,21 @@ export default function BattlePage({ params }: { params: Promise<{ roomId: strin
             setShowDamage({ dmg: -r.myDamage, target: "me" });
             addLog(enemyName + " 造成 " + r.myDamage + " 伤害" + (r.enemyCounter > 1 ? " (克制x" + r.enemyCounter + ")" : ""));
           }
-          if (r.myBlocked) addLog(myName + " 格挡了攻击");
-          if (r.enemyBlocked) addLog(enemyName + " 格挡了攻击");
+          // myBlocked: 敌方格挡了我的攻击
+          if (r.myBlocked) {
+            const pct = Math.round(BLOCK_REDUCTION[r.myAction === "heavy_strike" ? "vs_heavy_strike" : "vs_feint"] * 100);
+            addLog(enemyName + " 格挡，减免 " + pct + "% 伤害");
+          }
+          // enemyBlocked: 我方格挡了敌方攻击
+          if (r.enemyBlocked) {
+            const pct = Math.round(BLOCK_REDUCTION[r.enemyAction === "heavy_strike" ? "vs_heavy_strike" : "vs_feint"] * 100);
+            addLog(myName + " 格挡，减免 " + pct + "% 伤害");
+          }
 
           setMyHp(r.myHp); setMyStamina(r.myStamina); setMySpirit(r.mySpirit);
           setEnemyHp(r.enemyHp); setEnemyStamina(r.enemyStamina); setEnemySpirit(r.enemySpirit);
           if (r.myStaminaDelta) addLog(myName + " 耐力 " + (r.myStaminaDelta > 0 ? "+" : "") + r.myStaminaDelta);
+          if (r.enemyStaminaDelta) addLog(enemyName + " 耐力 " + (r.enemyStaminaDelta > 0 ? "+" : "") + r.enemyStaminaDelta);
           if (r.mySpiritDelta) addLog(myName + " 斗性 " + (r.mySpiritDelta > 0 ? "+" : "") + r.mySpiritDelta);
           if (r.enemySpiritDelta) addLog(enemyName + " 斗性 " + (r.enemySpiritDelta > 0 ? "+" : "") + r.enemySpiritDelta);
           setTimeout(() => setShowDamage(null), 900);
@@ -414,10 +424,28 @@ export default function BattlePage({ params }: { params: Promise<{ roomId: strin
     addLog(ai.name + " -> " + ACTION_LABEL[aAction]);
 
     setTimeout(() => {
-      if (result.attackerResult.damage > 0) { setShowDamage({ dmg: -result.attackerResult.damage, target: "enemy" }); setTrainAiHp(h => Math.max(0, h - result.attackerResult.damage)); }
-      if (result.defenderResult.damage > 0) { setShowDamage({ dmg: -result.defenderResult.damage, target: "me" }); setTrainPlayerHp(h => Math.max(0, h - result.defenderResult.damage)); }
-      if (result.attackerResult.isBlocked) addLog(ai.name + " 格挡了攻击");
-      if (result.defenderResult.isBlocked) addLog(player.name + " 格挡了攻击");
+      if (result.attackerResult.damage > 0) {
+        setShowDamage({ dmg: -result.attackerResult.damage, target: "enemy" });
+        setTrainAiHp(h => Math.max(0, h - result.attackerResult.damage));
+        addLog(player.name + " 造成 " + result.attackerResult.damage + " 伤害" + (result.attackerResult.counterApplied > 1 ? " (克制x" + result.attackerResult.counterApplied + ")" : ""));
+      }
+      if (result.defenderResult.damage > 0) {
+        setShowDamage({ dmg: -result.defenderResult.damage, target: "me" });
+        setTrainPlayerHp(h => Math.max(0, h - result.defenderResult.damage));
+        addLog(ai.name + " 造成 " + result.defenderResult.damage + " 伤害" + (result.defenderResult.counterApplied > 1 ? " (克制x" + result.defenderResult.counterApplied + ")" : ""));
+      }
+      if (result.attackerResult.isBlocked) {
+        const pct = Math.round(BLOCK_REDUCTION[pAction === "heavy_strike" ? "vs_heavy_strike" : "vs_feint"] * 100);
+        addLog(ai.name + " 格挡，减免 " + pct + "% 伤害");
+      }
+      if (result.defenderResult.isBlocked) {
+        const pct = Math.round(BLOCK_REDUCTION[aAction === "heavy_strike" ? "vs_heavy_strike" : "vs_feint"] * 100);
+        addLog(player.name + " 格挡，减免 " + pct + "% 伤害");
+      }
+      if (result.attackerResult.staminaDelta) addLog(player.name + " 耐力 " + (result.attackerResult.staminaDelta > 0 ? "+" : "") + result.attackerResult.staminaDelta);
+      if (result.defenderResult.staminaDelta) addLog(ai.name + " 耐力 " + (result.defenderResult.staminaDelta > 0 ? "+" : "") + result.defenderResult.staminaDelta);
+      if (result.attackerResult.spiritDelta) addLog(player.name + " 斗性 " + (result.attackerResult.spiritDelta > 0 ? "+" : "") + result.attackerResult.spiritDelta);
+      if (result.defenderResult.spiritDelta) addLog(ai.name + " 斗性 " + (result.defenderResult.spiritDelta > 0 ? "+" : "") + result.defenderResult.spiritDelta);
       setTimeout(() => setShowDamage(null), 900);
     }, 400);
 
