@@ -1,4 +1,5 @@
 import type { WebSocket } from "ws";
+import type { BattleMode } from "../src/config/game";
 
 /** 动作类型 */
 export type Action = "heavy_strike" | "feint" | "block" | "chirp";
@@ -59,6 +60,9 @@ export interface Room {
   selectionStartTime: number;
   // 创建时间 (清理用)
   createdAt: number;
+  battleMode: BattleMode;
+  /** 当前局败方 (车轮战用) */
+  lastDefeatedSide: "left" | "right" | "both" | null;
 }
 
 /** 动作克制关系表 */

@@ -75,7 +75,7 @@ function MatchmakeContent() {
           setMatchState("matched");
           const roomId = msg.payload.roomId;
           setTimeout(() => {
-            router.push(`/room/${roomId}?uid=${myUid}`);
+            router.push(`/room/${roomId}?uid=${myUid}&from=match`);
           }, 600);
         } else if (msg.type === "room:matchmake.timeout") {
           setMatchState("timeout");
@@ -129,7 +129,7 @@ function MatchmakeContent() {
         const msg = JSON.parse(e.data);
         if (msg.type === "room:matched") {
           setMatchState("matched");
-          setTimeout(() => router.push(`/room/${msg.payload.roomId}?uid=${myUid}`), 600);
+          setTimeout(() => router.push(`/room/${msg.payload.roomId}?uid=${myUid}&from=match`), 600);
         } else if (msg.type === "room:matchmake.timeout") {
           setMatchState("timeout");
         } else if (msg.type === "room:matchmake.cancelled") {

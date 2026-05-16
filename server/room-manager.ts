@@ -1,6 +1,6 @@
 import type { Room, Player, RoomPhase, BattleCricket } from "./types";
 import { WebSocket } from "ws";
-import { ROOM_CODE_CHARSET, ROOM_CODE_LENGTH } from "../src/config/game";
+import { ROOM_CODE_CHARSET, ROOM_CODE_LENGTH, BATTLE_MODE } from "../src/config/game";
 import { ROOM_CLEANUP_DELAY } from "../src/config/game";
 
 /** 生成房间号 */
@@ -64,6 +64,8 @@ export function createRoom(roomId: string, player: Player, isPractice = false): 
     selectionTimer: null,
     selectionStartTime: 0,
     createdAt: Date.now(),
+    battleMode: BATTLE_MODE,
+    lastDefeatedSide: null,
   };
   rooms.set(roomId, room);
   return room;
@@ -117,17 +119,24 @@ export function roundEnd(room: Room): void {
 }
 
 /** 下一局 */
-export function nextRound(room: Room): boolean {
+export function nextRound(room: Room, defeatedSide?: "left" | "right" | "both" | null): boolean {
   if (room.phase !== "roundEnd") return false;
 
-  room.currentLeftIndex++;
-  room.currentRightIndex++;
+  if (room.battleMode === "best_of_3") {
+    room.currentLeftIndex++;
+    room.currentRightIndex++;
+  } else {
+    // 车轮战：只递增败方索引
+    if (defeatedSide === "left" || defeatedSide === "both") room.currentLeftIndex++;
+    if (defeatedSide === "right" || defeatedSide === "both") room.currentRightIndex++;
+  }
+
   room.phase = "battling";
   room.leftAction = null;
   room.rightAction = null;
 
   // 检查是否有败阵蛐蛐需要替换
-  if (room.currentLeftIndex >= 3 || room.currentRightIndex >= 3) {
+  if (room.currentLeftIndex >= room.leftCrickets.length || room.currentRightIndex >= room.rightCrickets.length) {
     room.phase = "finished";
     return false;
   }
@@ -157,7 +166,10 @@ export function addScore(room: Room, side: "left" | "right"): void {
 
 /** 检查整场是否结束 */
 export function isGameOver(room: Room): boolean {
-  return room.leftScore >= 2 || room.rightScore >= 2;
+  if (room.battleMode === "best_of_3") {
+    return room.leftScore >= 2 || room.rightScore >= 2;
+  }
+  return room.currentLeftIndex >= room.leftCrickets.length || room.currentRightIndex >= room.rightCrickets.length;
 }
 
 /** 结束房间 */
@@ -222,6 +234,8 @@ export function enqueueMatch(entry: MatchEntry): Room | null {
       selectionTimer: null,
       selectionStartTime: Date.now(),
       createdAt: Date.now(),
+      battleMode: BATTLE_MODE,
+      lastDefeatedSide: null,
     };
     rooms.set(roomId, room);
     return room;

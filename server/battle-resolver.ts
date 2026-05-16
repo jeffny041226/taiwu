@@ -41,6 +41,7 @@ export function resolveRound(room: Room): {
   roundResult: RoundResultPayload;
   roundWin: RoundWinPayload | null;
   gameOver: GameOverPayload | null;
+  defeatedSide: "left" | "right" | "both" | null;
 } {
   const leftAction = room.leftAction!;
   const rightAction = room.rightAction!;
@@ -107,7 +108,9 @@ export function resolveRound(room: Room): {
   let gameOver: GameOverPayload | null = null;
 
   // 判断本局胜负
+  let defeatedSide: "left" | "right" | "both" | null = null;
   if (leftDefeated && rightDefeated) {
+    defeatedSide = "both";
     // 同时倒: 比较剩余HP百分比
     const leftPct = leftCricket.hp / leftCricket.maxHp;
     const rightPct = rightCricket.hp / rightCricket.maxHp;
@@ -119,21 +122,37 @@ export function resolveRound(room: Room): {
       roundWin = { winner: "right", leftScore: room.leftScore, rightScore: room.rightScore, defeatedCricket: { side: "left", name: leftCricket.name, title: leftCricket.title } };
     }
   } else if (leftDefeated) {
+    defeatedSide = "left";
     room.rightScore++;
     roundWin = { winner: "right", leftScore: room.leftScore, rightScore: room.rightScore, defeatedCricket: { side: "left", name: leftCricket.name, title: leftCricket.title } };
   } else if (rightDefeated) {
+    defeatedSide = "right";
     room.leftScore++;
     roundWin = { winner: "left", leftScore: room.leftScore, rightScore: room.rightScore, defeatedCricket: { side: "right", name: rightCricket.name, title: rightCricket.title } };
   }
 
   // 判断整场结束
-  if (room.leftScore >= 2) {
-    gameOver = { winner: "left", leftScore: room.leftScore, rightScore: room.rightScore };
-  } else if (room.rightScore >= 2) {
-    gameOver = { winner: "right", leftScore: room.leftScore, rightScore: room.rightScore };
+  if (room.battleMode === "best_of_3") {
+    if (room.leftScore >= 2) {
+      gameOver = { winner: "left", leftScore: room.leftScore, rightScore: room.rightScore };
+    } else if (room.rightScore >= 2) {
+      gameOver = { winner: "right", leftScore: room.leftScore, rightScore: room.rightScore };
+    }
+  } else {
+    // 车轮战: 一方败阵蛐蛐用完即结束
+    if (defeatedSide === "left" || defeatedSide === "both") {
+      if (room.currentLeftIndex + 1 >= room.leftCrickets.length) {
+        gameOver = { winner: "right", leftScore: room.leftScore, rightScore: room.rightScore };
+      }
+    }
+    if (defeatedSide === "right" || defeatedSide === "both") {
+      if (room.currentRightIndex + 1 >= room.rightCrickets.length) {
+        gameOver = { winner: "left", leftScore: room.leftScore, rightScore: room.rightScore };
+      }
+    }
   }
 
-  return { roundResult, roundWin, gameOver };
+  return { roundResult, roundWin, gameOver, defeatedSide };
 }
 
 /**

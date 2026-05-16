@@ -116,3 +116,9 @@ export const TRAIT_EFFECTS = {
     chirpSpiritMultiplier: 1.5,
   },
 } as const;
+
+/** 对战模式 */
+export type BattleMode = "best_of_3" | "tag_team";
+
+/** 全局对战模式配置 */
+export const BATTLE_MODE: BattleMode = "tag_team";

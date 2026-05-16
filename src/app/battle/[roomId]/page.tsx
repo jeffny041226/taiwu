@@ -6,7 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { TopBar } from "@/components/layout/TopBar";
 import { LoadingOverlay } from "@/components/game/LoadingOverlay";
 import { calcRoundResult, type CricketBattleState } from "@/lib/battle-calc";
-import { BLOCK_REDUCTION } from "@/config/game";
+import { BLOCK_REDUCTION, AUTO_READY_DELAY } from "@/config/game";
 
 type Action = "heavy_strike" | "feint" | "block" | "chirp";
 
@@ -159,6 +159,7 @@ export default function BattlePage({ params }: { params: Promise<{ roomId: strin
   const searchParams = useSearchParams();
   const isPractice = searchParams.get("mode") === "practice";
   const myUid = searchParams.get("uid") || "";
+  const fromMatch = searchParams.get("from") === "match";
 
   const wsRef = useRef<WebSocket | null>(null);
 
@@ -192,6 +193,7 @@ export default function BattlePage({ params }: { params: Promise<{ roomId: strin
   const [showDamage, setShowDamage] = useState<{ dmg: number; target: "me" | "enemy" } | null>(null);
   const [lastMyAction, setLastMyAction] = useState<Action | null>(null);
   const [lastEnemyAction, setLastEnemyAction] = useState<Action | null>(null);
+  const [showRoundEnd, setShowRoundEnd] = useState(false);
   const [myOffset, setMyOffset] = useState(0);
   const [enemyOffset, setEnemyOffset] = useState(0);
   const [axisAngle, setAxisAngle] = useState(0);
@@ -233,7 +235,7 @@ export default function BattlePage({ params }: { params: Promise<{ roomId: strin
 
       // 收到蛐蛐战斗数据
       if (msg.type === "battle:data") {
-        const d = msg.payload as { myCrickets: Cricket[], enemyCrickets: Cricket[], myIdx: number, enemyIdx: number, myScore: number, enemyScore: number };
+        const d = msg.payload as { myCrickets: Cricket[], enemyCrickets: Cricket[], myIdx: number, enemyIdx: number, myScore: number, enemyScore: number, battleMode?: string };
         setMyTeam(d.myCrickets);
         setEnemyTeam(d.enemyCrickets);
         setMyIdx(d.myIdx ?? 0);
@@ -319,7 +321,11 @@ export default function BattlePage({ params }: { params: Promise<{ roomId: strin
           setLastMyAction(null); setLastEnemyAction(null);
           setShowDamage(null);
           if (!r.myDefeated && !r.enemyDefeated) {
-            setWaitingForAction(true);
+            setShowRoundEnd(true);
+            setTimeout(() => {
+              setShowRoundEnd(false);
+              setWaitingForAction(true);
+            }, 800);
           }
         }, 1200);
         return;
@@ -351,6 +357,7 @@ export default function BattlePage({ params }: { params: Promise<{ roomId: strin
         setMyHp(r.myCricket.hp); setMyStamina(r.myCricket.stamina); setMySpirit(r.myCricket.spirit);
         setEnemyHp(r.enemyCricket.hp); setEnemyStamina(r.enemyCricket.stamina); setEnemySpirit(r.enemyCricket.spirit);
         addLog("换蛐蛐: 我方->" + r.myCricket.name + " 对方->" + r.enemyCricket.name);
+        setPvpPhase("battling");
         setWaitingForAction(true);
         return;
       }
@@ -388,6 +395,23 @@ export default function BattlePage({ params }: { params: Promise<{ roomId: strin
       payload: { roomId: roomId.toUpperCase(), uid: myUid, action },
     }));
   };
+
+  // 自动发送随机动作
+  useEffect(() => {
+    if (!isPractice && pvpPhase === "battling" && waitingForAction) {
+      const actions: Action[] = ["heavy_strike", "feint", "block", "chirp"];
+      const timer = setTimeout(() => sendAction(actions[Math.floor(Math.random() * 4)]), 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [isPractice, pvpPhase, waitingForAction, roundCount]);
+
+  // 局间自动继续
+  useEffect(() => {
+    if (!isPractice && pvpPhase === "roundEnd") {
+      const timer = setTimeout(() => sendNextRound(), AUTO_READY_DELAY);
+      return () => clearTimeout(timer);
+    }
+  }, [isPractice, pvpPhase, roundCount]);
 
   // ── PVP: 局间下一局 ──
   const sendNextRound = () => {
@@ -599,41 +623,34 @@ export default function BattlePage({ params }: { params: Promise<{ roomId: strin
         </div>
       </div>
 
-      {/* PVP: 动作按钮 或 局间提示 */}
+      {/* PVP: 自动对战标识 */}
       {!isPractice && pvpPhase === "battling" && (
-        <div className="absolute bottom-[80px] left-0 right-0 z-10">
-          <div className="flex justify-center gap-2 px-4">
-            {(["heavy_strike", "feint", "block", "chirp"] as Action[]).map(a => (
-              <button key={a} type="button" onClick={() => sendAction(a)} disabled={!waitingForAction}
-                className={"w-[82px] h-[44px] rounded-lg border transition-all font-[family-name:var(--font-noto-serif)] text-[14px] font-bold " + (waitingForAction ? "border-[var(--color-gold)]/40 bg-gradient-to-b from-[rgba(30,22,16,0.85)] to-[rgba(20,14,10,0.9)] hover:border-[var(--color-gold)]/70 active:scale-[0.96]" : "border-white/5 bg-[rgba(20,14,10,0.4)] opacity-40 pointer-events-none")}
-                style={{ color: waitingForAction ? ACTION_COLORS[a] : "var(--color-text-muted)" }}>
-                {ACTION_LABEL[a]}
-              </button>
-            ))}
+        <div className="absolute bottom-[155px] left-0 right-0 z-10 flex justify-center">
+          <div className="px-4 py-2 rounded-lg border border-[var(--color-gold)]/20 bg-[rgba(197,160,89,0.05)]">
+            <span className="inline-block w-2 h-2 rounded-full bg-[var(--color-gold)] animate-pulse mr-2" />
+            <span className="text-[13px] text-[var(--color-gold)] font-[family-name:var(--font-noto-serif)]">
+              {showRoundEnd ? "回合结束" : waitingForAction ? "即将出招..." : ""}
+            </span>
           </div>
         </div>
       )}
       {!isPractice && pvpPhase === "roundEnd" && (
-        <div className="absolute bottom-[80px] left-0 right-0 z-10">
-          <div className="flex justify-center px-4">
-            <button type="button" onClick={sendNextRound}
-              className="w-[342px] h-[50px] rounded-[10px] border border-[var(--color-gold)]/30 bg-gradient-to-b from-[rgba(30,22,16,0.85)] to-[rgba(20,14,10,0.9)] text-[18px] font-bold text-[var(--color-gold)] font-[family-name:var(--font-noto-serif)] hover:border-[var(--color-gold)]/70 active:scale-[0.98]">
-              下一局
-            </button>
+        <div className="absolute bottom-[155px] left-0 right-0 z-10 flex justify-center">
+          <div className="px-4 py-2 rounded-lg border border-[var(--color-gold)]/20 bg-[rgba(197,160,89,0.05)]">
+            <span className="inline-block w-2 h-2 rounded-full bg-[var(--color-gold)] animate-pulse mr-2" />
+            <span className="text-[13px] text-[var(--color-gold)] font-[family-name:var(--font-noto-serif)]">下一局准备中...</span>
           </div>
         </div>
       )}
 
       {/* 我方待战区 */}
-      {!(pvpPhase === "battling" && !isPractice) && !(pvpPhase === "roundEnd" && !isPractice) && (
-        <div className="absolute bottom-[80px] left-0 right-0 z-10">
+      <div className="absolute bottom-[80px] left-0 right-0 z-10">
           <div className="flex justify-center gap-2 px-4">
             {myTeamArr.map((c: Cricket, i: number) => (
               <BenchCard key={c.id} cricket={c} status={i === myCurrentIdx ? "fighting" : i < myCurrentIdx ? "defeated" : "waiting"} />
             ))}
           </div>
         </div>
-      )}
 
       {/* 我方信息条 */}
       <div className="absolute bottom-[34px] left-0 right-0 z-10 border-t border-[var(--color-gold)]/8 bg-[var(--color-bg-base)]/90 backdrop-blur-sm">
@@ -653,7 +670,11 @@ export default function BattlePage({ params }: { params: Promise<{ roomId: strin
             </p>
             <div className="flex gap-3">
               <a href="/" className="flex-1 h-11 rounded-[10px] border border-[var(--color-gold)]/30 bg-gradient-to-b from-[rgba(30,22,16,0.85)] to-[rgba(20,14,10,0.9)] text-[18px] font-bold text-[var(--color-gold)] font-[family-name:var(--font-noto-serif)] items-center justify-center flex hover:border-[var(--color-gold)]/70 transition-all active:scale-[0.98]">返回大厅</a>
-              <a href={"/battle/" + roomId + "?mode=practice"} className="flex-1 h-11 rounded-[10px] border border-[var(--color-gold)]/30 bg-gradient-to-b from-[rgba(30,22,16,0.85)] to-[rgba(20,14,10,0.9)] text-[18px] font-bold text-[var(--color-gold)] font-[family-name:var(--font-noto-serif)] items-center justify-center flex hover:border-[var(--color-gold)]/70 transition-all active:scale-[0.98]">再来一局</a>
+              {fromMatch ? (
+                <a href="/matchmake" className="flex-1 h-11 rounded-[10px] border border-[var(--color-gold)]/30 bg-gradient-to-b from-[rgba(30,22,16,0.85)] to-[rgba(20,14,10,0.9)] text-[18px] font-bold text-[var(--color-gold)] font-[family-name:var(--font-noto-serif)] items-center justify-center flex hover:border-[var(--color-gold)]/70 transition-all active:scale-[0.98]">再来一局</a>
+              ) : (
+                <a href={"/room/" + roomId + "?uid=" + myUid} className="flex-1 h-11 rounded-[10px] border border-[var(--color-gold)]/30 bg-gradient-to-b from-[rgba(30,22,16,0.85)] to-[rgba(20,14,10,0.9)] text-[18px] font-bold text-[var(--color-gold)] font-[family-name:var(--font-noto-serif)] items-center justify-center flex hover:border-[var(--color-gold)]/70 transition-all active:scale-[0.98]">再来一局</a>
+              )}
             </div>
           </div>
         </div>

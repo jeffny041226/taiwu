@@ -29,6 +29,7 @@ export default function RoomPage({ params }: { params: Promise<{ roomId: string 
   const { roomId } = use(params);
   const searchParams = useSearchParams();
   const myUid = searchParams.get("uid") || `user-${Math.random().toString(36).slice(2, 8)}`;
+  const fromMatch = searchParams.get("from") === "match";
   const [phase, setPhase] = useState("waiting");
   const [opponent, setOpponent] = useState<RoomPlayer | null>(null);
   const [opponentReady, setOpponentReady] = useState(false);
@@ -62,6 +63,7 @@ export default function RoomPage({ params }: { params: Promise<{ roomId: string 
 
     ws.onopen = () => {
       setConnecting(false);
+      setErrorMsg("");
       ws.send(JSON.stringify({
         type: "room:join",
         payload: { roomId: roomId.toUpperCase(), uid: myUid, nickName: "玩家" },
@@ -91,7 +93,7 @@ export default function RoomPage({ params }: { params: Promise<{ roomId: string 
           // 战斗开始 → 跳转战斗页
           if (s.phase === "battling") {
             stop();
-            window.location.href = "/battle/" + roomId + "?uid=" + myUid;
+            window.location.href = "/battle/" + roomId + "?uid=" + myUid + (fromMatch ? "&from=match" : "");
           }
         } else if (msg.type === "room:joined") {
           const s: RoomState = msg.payload;

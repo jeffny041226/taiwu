@@ -50,7 +50,8 @@ function handleRoundSettlement(roomId: string): void {
 
   clearActionTimer(roomId);
 
-  const { roundResult, roundWin, gameOver } = resolveRound(room);
+  const { roundResult, roundWin, gameOver, defeatedSide } = resolveRound(room);
+  room.lastDefeatedSide = defeatedSide;
 
   const leftCricket = room.leftCrickets[room.currentLeftIndex];
   const rightCricket = room.rightCrickets[room.currentRightIndex];
@@ -128,7 +129,7 @@ function handleRoundSettlement(roomId: string): void {
         r.rightPlayer.readyRound = true;
       }
       if (r.leftPlayer?.readyRound && r.rightPlayer?.readyRound) {
-        if (nextRound(r)) {
+        if (nextRound(r, r.lastDefeatedSide)) {
           broadcast(roomId, "room:state", buildRoomState(r));
           broadcastCricketChange(r);
           startActionTimer(roomId);
@@ -232,6 +233,7 @@ function sendBattleData(room: NonNullable<ReturnType<typeof getRoom>>, ws: WebSo
     enemyIdx: isLeft ? room.currentRightIndex : room.currentLeftIndex,
     myScore: isLeft ? room.leftScore : room.rightScore,
     enemyScore: isLeft ? room.rightScore : room.leftScore,
+    battleMode: room.battleMode,
   });
 }
 
@@ -553,7 +555,7 @@ export function handleMessage(ws: WebSocket, rawData: Buffer): void {
       if (room.isPractice) room.rightPlayer!.readyRound = true;
 
       if (room.leftPlayer?.readyRound && room.rightPlayer?.readyRound) {
-        if (nextRound(room)) {
+        if (nextRound(room, room.lastDefeatedSide)) {
           broadcast(roomId, "room:state", buildRoomState(room));
           broadcastCricketChange(room);
           startActionTimer(roomId);
