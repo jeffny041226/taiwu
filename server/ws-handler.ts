@@ -4,7 +4,7 @@ import {
   getRoom, getAllRooms, createRoom, joinRoom, setCrickets, startBattle,
   roundEnd, nextRound, setAction, bothActionsReady,
   addScore, finishRoom, scheduleCleanup, validateRoomCode, generateRoomCode,
-  clearSelectionTimer,
+  clearSelectionTimer, enqueueMatch, dequeueMatch, getMatchQueueLength,
 } from "./room-manager";
 import {
   resolveRound, validateCricketCount,
@@ -407,6 +407,39 @@ export function handleMessage(ws: WebSocket, rawData: Buffer): void {
 
       send(ws, "room:created", { roomId });
       send(ws, "room:state", buildRoomState(room));
+      break;
+    }
+
+    // ── 匹配对战 ──
+    case "room:matchmake": {
+      const uid = payload.uid as string;
+      const nickName = (payload.nickName as string) || "玩家";
+      if (!uid) { send(ws, "room:error", { message: "缺少用户ID" }); return; }
+
+      const room = enqueueMatch({ ws, uid, nickName, joinTime: Date.now() });
+      if (room) {
+        // 配对成功 → 双方都发 room:matched
+        if (room.leftPlayer?.ws?.readyState === WebSocket.OPEN) {
+          send(room.leftPlayer.ws, "room:matched", { roomId: room.roomId });
+          send(room.leftPlayer.ws, "room:state", buildRoomState(room));
+          send(room.leftPlayer.ws, "room:selectionStart", { timeout: CRICKET_SELECTION_TIMEOUT });
+        }
+        if (room.rightPlayer?.ws?.readyState === WebSocket.OPEN) {
+          send(room.rightPlayer.ws, "room:matched", { roomId: room.roomId });
+          send(room.rightPlayer.ws, "room:state", buildRoomState(room));
+          send(room.rightPlayer.ws, "room:selectionStart", { timeout: CRICKET_SELECTION_TIMEOUT });
+        }
+      } else {
+        // 入队等待，无超时限制
+        send(ws, "room:matchmake.waiting", { position: getMatchQueueLength() });
+      }
+      break;
+    }
+
+    case "room:matchmake.cancel": {
+      const cancelUid = payload.uid as string;
+      if (cancelUid) dequeueMatch(cancelUid);
+      send(ws, "room:matchmake.cancelled", {});
       break;
     }
 

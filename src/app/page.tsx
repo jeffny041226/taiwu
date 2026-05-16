@@ -22,6 +22,8 @@ export default function HomePage() {
   const [isPracticeMode, setIsPracticeMode] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
 
+  const WS_TIMEOUT = 6000;
+
   const connectWs = () => {
     const protocol = window.location.protocol === "https:" ? "wss" : "ws";
     const envHost = process.env.NEXT_PUBLIC_WS_HOST;
@@ -34,11 +36,20 @@ export default function HomePage() {
     return ws;
   };
 
-  const sendWhenOpen = (ws: WebSocket, msg: string) => {
+  const sendWhenOpen = (ws: WebSocket, msg: string, onTimeout?: () => void) => {
     if (ws.readyState === WebSocket.OPEN) {
       ws.send(msg);
-    } else {
-      ws.onopen = () => { ws.send(msg); };
+    } else if (ws.readyState === WebSocket.CONNECTING) {
+      let timedOut = false;
+      const timer = setTimeout(() => {
+        timedOut = true;
+        ws.close();
+        onTimeout?.();
+      }, WS_TIMEOUT);
+      ws.onopen = () => {
+        clearTimeout(timer);
+        if (!timedOut) ws.send(msg);
+      };
     }
   };
 
@@ -60,7 +71,8 @@ export default function HomePage() {
       } catch {}
     };
     ws.onerror = () => { setErrorMsg("网络连接失败"); setAction("error"); setTimeout(() => setAction("idle"), 2000); };
-    sendWhenOpen(ws, JSON.stringify({ type: "room:create", payload: { uid: myUid, nickName: "玩家" } }));
+    sendWhenOpen(ws, JSON.stringify({ type: "room:create", payload: { uid: myUid, nickName: "玩家" } }),
+      () => { setErrorMsg("连接服务器超时"); setAction("error"); setTimeout(() => setAction("idle"), 2000); });
   };
 
   const handlePractice = () => {
@@ -78,7 +90,8 @@ export default function HomePage() {
       } catch {}
     };
     ws.onerror = () => { setErrorMsg("网络连接失败"); setAction("error"); setTimeout(() => setAction("idle"), 2000); };
-    sendWhenOpen(ws, JSON.stringify({ type: "room:practice", payload: { uid: myUid, nickName: "玩家" } }));
+    sendWhenOpen(ws, JSON.stringify({ type: "room:practice", payload: { uid: myUid, nickName: "玩家" } }),
+      () => { setErrorMsg("连接服务器超时"); setAction("error"); setTimeout(() => setAction("idle"), 2000); });
   };
 
   const handleJoinRoom = () => {
@@ -97,7 +110,8 @@ export default function HomePage() {
       } catch {}
     };
     ws.onerror = () => { setErrorMsg("网络连接失败"); setAction("error"); setTimeout(() => setAction("idle"), 2000); };
-    sendWhenOpen(ws, JSON.stringify({ type: "room:join", payload: { roomId: roomCode.toUpperCase(), uid: myUid, nickName: "玩家" } }));
+    sendWhenOpen(ws, JSON.stringify({ type: "room:join", payload: { roomId: roomCode.toUpperCase(), uid: myUid, nickName: "玩家" } }),
+      () => { setErrorMsg("连接服务器超时"); setAction("error"); setTimeout(() => setAction("idle"), 2000); });
   };
 
   useEffect(() => {
@@ -156,6 +170,8 @@ export default function HomePage() {
 
       {/* Buttons */}
       <section className="relative z-[10] flex flex-col items-center gap-3 px-4 pb-8">
+        <Link href="/matchmake" className={btnClass + " flex items-center justify-center border-[var(--color-gold)]/60 bg-gradient-to-b from-[rgba(197,160,89,0.15)] to-[rgba(20,14,10,0.9)]"}>匹配对战</Link>
+
         <button type="button" onClick={handleCreateRoom} disabled={isLoading} className={btnClass}>开房对战</button>
 
         {showJoinInput ? (
@@ -163,7 +179,7 @@ export default function HomePage() {
             <input type="text" value={roomCode} onChange={(e) => setRoomCode(e.target.value.toUpperCase())} maxLength={5} placeholder="输入房间号"
               className="flex-1 h-[50px] rounded-[10px] border border-[var(--color-gold)]/30 bg-[rgba(20,14,10,0.9)] px-4 text-center text-[20px] tracking-[6px] text-[var(--color-text-primary)] font-[family-name:var(--font-noto-serif)] placeholder:text-[var(--color-text-muted)] outline-none focus:border-[var(--color-gold)]/70 uppercase" />
             <button type="button" onClick={handleJoinRoom} disabled={roomCode.length !== 5 || isLoading}
-              className={`h-[50px] px-6 rounded-[10px] border border-[var(--color-gold)]/30 bg-gradient-to-b from-[rgba(30,22,16,0.85)] to-[rgba(20,14,10,0.9)] text-[18px] font-bold flex items-center justify-center font-[family-name:var(--font-noto-serif)] ${roomCode.length === 5 ? "text-[var(--color-gold)] hover:border-[var(--color-gold)]/70" : "text-[var(--color-text-muted)] opacity-40 pointer-events-none"}`}>进入</button>
+              className={`h-[50px] px-6 rounded-[10px] border border-[var(--color-gold)]/30 bg-gradient-to-b from-[rgba(30,22,16,0.85)] to-[rgba(20,14,10,0.9)] text-[18px] font-bold whitespace-nowrap flex items-center justify-center font-[family-name:var(--font-noto-serif)] ${roomCode.length === 5 ? "text-[#4a90d9] hover:border-[#4a90d9]/70" : "text-[var(--color-text-muted)] opacity-40 pointer-events-none"}`}>进入</button>
           </div>
         ) : (
           <button type="button" onClick={() => setShowJoinInput(true)} className={btnClass}>加入房间</button>

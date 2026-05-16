@@ -1,4 +1,5 @@
 import type { Room, Player, RoomPhase, BattleCricket } from "./types";
+import { WebSocket } from "ws";
 import { ROOM_CODE_CHARSET, ROOM_CODE_LENGTH } from "../src/config/game";
 import { ROOM_CLEANUP_DELAY } from "../src/config/game";
 
@@ -179,6 +180,67 @@ export function clearSelectionTimer(roomId: string): void {
     clearTimeout(room.selectionTimer);
     room.selectionTimer = null;
   }
+}
+
+// ── 匹配队列 ──
+
+export interface MatchEntry {
+  ws: WebSocket;
+  uid: string;
+  nickName: string;
+  joinTime: number;
+}
+
+const matchmakingQueue: MatchEntry[] = [];
+
+/** 入队匹配。返回房间表示配对成功，否则已入队等待 */
+export function enqueueMatch(entry: MatchEntry): Room | null {
+  // 检查队列中是否有等待者
+  const idx = matchmakingQueue.findIndex(e => e.uid !== entry.uid);
+  if (idx !== -1) {
+    const other = matchmakingQueue.splice(idx, 1)[0];
+    const roomId = generateRoomCode(entry.uid + "-" + other.uid + "-" + Date.now());
+
+    const leftPlayer: Player = { uid: other.uid, nickName: other.nickName, ws: other.ws, readyRound: false };
+    const rightPlayer: Player = { uid: entry.uid, nickName: entry.nickName, ws: entry.ws, readyRound: false };
+
+    const room: Room = {
+      roomId,
+      phase: "ready",
+      leftPlayer,
+      rightPlayer,
+      isPractice: false,
+      leftCrickets: [],
+      rightCrickets: [],
+      currentLeftIndex: 0,
+      currentRightIndex: 0,
+      leftScore: 0,
+      rightScore: 0,
+      leftAction: null,
+      rightAction: null,
+      actionTimer: null,
+      selectionTimer: null,
+      selectionStartTime: Date.now(),
+      createdAt: Date.now(),
+    };
+    rooms.set(roomId, room);
+    return room;
+  }
+
+  // 无匹配 — 入队
+  matchmakingQueue.push(entry);
+  return null;
+}
+
+/** 从匹配队列中移除 */
+export function dequeueMatch(uid: string): void {
+  const idx = matchmakingQueue.findIndex(e => e.uid === uid);
+  if (idx !== -1) matchmakingQueue.splice(idx, 1);
+}
+
+/** 获取匹配队列长度 */
+export function getMatchQueueLength(): number {
+  return matchmakingQueue.length;
 }
 
 /** 调度清理房间 */

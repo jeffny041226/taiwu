@@ -17,6 +17,16 @@ export interface RoomPracticeMessage {
   payload: Record<string, never>;
 }
 
+export interface RoomMatchmakeMessage {
+  type: "room:matchmake";
+  payload: { uid: string; nickName: string };
+}
+
+export interface RoomMatchmakeCancelMessage {
+  type: "room:matchmake.cancel";
+  payload: { uid: string };
+}
+
 export interface BattleReadyMessage {
   type: "battle:ready";
   payload: { cricketIds: number[] };
@@ -31,6 +41,8 @@ export type ClientMessage =
   | RoomCreateMessage
   | RoomJoinMessage
   | RoomPracticeMessage
+  | RoomMatchmakeMessage
+  | RoomMatchmakeCancelMessage
   | BattleReadyMessage
   | BattleActionMessage
   | { type: "ping"; payload: unknown };
@@ -57,6 +69,26 @@ export interface RoomErrorMessage {
   payload: { message: string };
 }
 
+export interface RoomMatchmakeWaitingMessage {
+  type: "room:matchmake.waiting";
+  payload: { position: number };
+}
+
+export interface RoomMatchedMessage {
+  type: "room:matched";
+  payload: { roomId: string };
+}
+
+export interface RoomMatchmakeTimeoutMessage {
+  type: "room:matchmake.timeout";
+  payload: Record<string, never>;
+}
+
+export interface RoomMatchmakeCancelledMessage {
+  type: "room:matchmake.cancelled";
+  payload: Record<string, never>;
+}
+
 export interface BattleRoundResultMessage {
   type: "battle:roundResult";
   payload: RoundResult;
@@ -77,6 +109,10 @@ export type ServerMessage =
   | RoomJoinedMessage
   | RoomStateMessage
   | RoomErrorMessage
+  | RoomMatchmakeWaitingMessage
+  | RoomMatchedMessage
+  | RoomMatchmakeTimeoutMessage
+  | RoomMatchmakeCancelledMessage
   | BattleRoundResultMessage
   | BattleRoundWinMessage
   | BattleGameOverMessage
