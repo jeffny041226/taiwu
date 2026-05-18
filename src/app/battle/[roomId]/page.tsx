@@ -236,8 +236,10 @@ export default function BattlePage({ params }: { params: Promise<{ roomId: strin
   // ── PVP: Register WS handlers via on/off ──
   useEffect(() => {
     if (!wsReady) return;
+    console.log("[Battle] wsReady, sending room:join for roomId=" + roomId + " myUid=" + myUid);
 
     const handleBattleData = (payload: unknown) => {
+      console.log("[Battle] 收到 battle:data!");
       const d = payload as { myCrickets: Cricket[], enemyCrickets: Cricket[], myIdx: number, enemyIdx: number, myScore: number, enemyScore: number, battleMode?: string };
       setMyTeam(d.myCrickets);
       setEnemyTeam(d.enemyCrickets);

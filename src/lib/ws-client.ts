@@ -46,6 +46,7 @@ export class WSClient {
       this.startHeartbeat();
       // 发送积压消息
       const pending = this.pendingMessages.splice(0);
+      console.log(`[WSClient] 连接已建立, 发送 ${pending.length} 条积压消息`);
       for (const msg of pending) {
         this.ws?.send(JSON.stringify(msg));
       }
@@ -121,6 +122,9 @@ export class WSClient {
   }
 
   private dispatch(type: string, payload: unknown): void {
+    if (type !== "pong") {
+      console.log(`[WSClient] 收到消息: type=${type}`);
+    }
     this.handlers.get(type)?.forEach((handler) => handler(payload));
   }
 
