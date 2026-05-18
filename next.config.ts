@@ -1,7 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  allowedDevOrigins: ["localhost", "192.168.0.106", "172.28.43.55"],
+  transpilePackages: ["@taiwu/shared"],
+  allowedDevOrigins: ["localhost", "192.168.0.106", "172.28.43.55", "172.28.55.57"],
   images: {
     remotePatterns: [
       {
@@ -20,6 +21,15 @@ const nextConfig: NextConfig = {
   },
   turbopack: {
     root: process.cwd(),
+  },
+  async rewrites() {
+    const backendUrl = process.env.BACKEND_URL || "http://localhost:4000";
+    return [
+      {
+        source: "/api/:path*",
+        destination: `${backendUrl}/api/:path*`,
+      },
+    ];
   },
 };
 

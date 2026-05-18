@@ -3,8 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev -p 3000",
-    "dev:ws": "tsx watch server/index.ts",
+    "dev": "pnpm --filter @taiwu/backend dev & next dev -p 3000",
+    "dev:frontend": "next dev -p 3000",
+    "dev:backend": "pnpm --filter @taiwu/backend dev",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
@@ -12,27 +13,26 @@
     "test:run": "vitest run"
   },
   "dependencies": {
+    "@taiwu/shared": "workspace:*",
+    "howler": "^2.2.4",
+    "lottie-react": "^2.4.0",
     "next": "^16.0.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "lottie-react": "^2.4.0",
-    "howler": "^2.2.4",
-    "ws": "^8.18.0",
-    "@supabase/supabase-js": "^2.49.0"
+    "sharp": "^0.34.5"
   },
   "devDependencies": {
+    "@tailwindcss/postcss": "^4.0.0",
+    "@types/howler": "^2.2.12",
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
-    "@types/howler": "^2.2.12",
-    "@types/ws": "^8.5.0",
-    "typescript": "^5.7.0",
-    "tailwindcss": "^4.0.0",
-    "@tailwindcss/postcss": "^4.0.0",
-    "postcss": "^8.5.0",
     "eslint": "^9.0.0",
     "eslint-config-next": "^16.0.0",
+    "postcss": "^8.5.0",
+    "tailwindcss": "^4.0.0",
     "tsx": "^4.19.0",
+    "typescript": "^5.7.0",
     "vitest": "^3.0.0"
   }
 }

@@ -5,8 +5,12 @@ import { useState, useCallback, useEffect, useRef, use } from "react";
 import { useSearchParams } from "next/navigation";
 import { TopBar } from "@/components/layout/TopBar";
 import { LoadingOverlay } from "@/components/game/LoadingOverlay";
-import { calcRoundResult, type CricketBattleState } from "@/lib/battle-calc";
-import { BLOCK_REDUCTION, AUTO_READY_DELAY } from "@/config/game";
+import { calcRoundResult, type BattleCalcInput } from "@taiwu/shared/lib/battle-calc";
+import { BLOCK_REDUCTION, AUTO_READY_DELAY, BATTLE_MODE, BATTLE_MODE_LABELS } from "@taiwu/shared/config/game";
+import { useWebSocket } from "@/hooks/useWebSocket";
+import { ensureAuth } from "@/lib/auth";
+import { api } from "@/lib/api";
+import type { CricketTemplate } from "@taiwu/shared/types/cricket";
 
 type Action = "heavy_strike" | "feint" | "block" | "chirp";
 
@@ -51,7 +55,6 @@ const TRAIN_AI_TEAM: Cricket[] = [
 
 const TIER_COLORS: Record<string, string> = { common: "#a0a0a0", rare: "#4a90d9", epic: "#8b5cf6", legendary: "#c5a059" };
 const ACTION_LABEL: Record<Action, string> = { heavy_strike: "猛击", feint: "虚晃", block: "格挡", chirp: "鸣叫" };
-const ACTION_COLORS: Record<Action, string> = { heavy_strike: "#8b3030", feint: "#6a3070", block: "#3050a0", chirp: "#307030" };
 
 function getCricketImage(cricket: Cricket): string {
   const idx = ((cricket.id - 1) % 6) + 1;
@@ -158,10 +161,25 @@ export default function BattlePage({ params }: { params: Promise<{ roomId: strin
   const { roomId } = use(params);
   const searchParams = useSearchParams();
   const isPractice = searchParams.get("mode") === "practice";
-  const myUid = searchParams.get("uid") || "";
   const fromMatch = searchParams.get("from") === "match";
 
-  const wsRef = useRef<WebSocket | null>(null);
+  // Auth init
+  const [myUid, setMyUid] = useState("");
+  const [token, setToken] = useState("");
+  useEffect(() => {
+    ensureAuth().then((auth) => {
+      if (!auth) {
+        window.location.href = "/auth";
+        return;
+      }
+      setMyUid(auth.uid);
+      setToken(auth.token);
+    });
+  }, []);
+
+  // WS connection
+  const wsReady = !isPractice && myUid && token;
+  const { send, on, off } = useWebSocket(wsReady ? roomId : null, token);
 
   // ── PVP 状态 ──
   const [myTeam, setMyTeam] = useState<Cricket[]>([]);
@@ -178,18 +196,6 @@ export default function BattlePage({ params }: { params: Promise<{ roomId: strin
   const [waitingForAction, setWaitingForAction] = useState(false);
   const [pvpPhase, setPvpPhase] = useState<"loading" | "battling" | "roundEnd" | "finished">("loading");
   const [pvpGameOver, setPvpGameOver] = useState<{ winner: string; myScore: number; enemyScore: number } | null>(null);
-
-  // ── 训练状态 ──
-  const [aiTeam] = useState(TRAIN_AI_TEAM);
-  const [playerTeam] = useState(TRAIN_PLAYER_TEAM);
-  const [currentAiIdx, setCurrentAiIdx] = useState(0);
-  const [currentPlayerIdx, setCurrentPlayerIdx] = useState(0);
-  const [trainRoundCount, setTrainRoundCount] = useState(0);
-  const [trainGameOver, setTrainGameOver] = useState(false);
-  const [trainWinner, setTrainWinner] = useState("");
-  const [trainAttacking, setTrainAttacking] = useState(false);
-
-  // ── 共享 UI 状态 ──
   const [showDamage, setShowDamage] = useState<{ dmg: number; target: "me" | "enemy" } | null>(null);
   const [lastMyAction, setLastMyAction] = useState<Action | null>(null);
   const [lastEnemyAction, setLastEnemyAction] = useState<Action | null>(null);
@@ -204,7 +210,7 @@ export default function BattlePage({ params }: { params: Promise<{ roomId: strin
     setBattleLog(prev => [...prev.slice(-30), { text, id }]);
   }, []);
 
-  // ── PVP: WS 消息处理 (使用回调 refs 避免 TSX 模板字面量解析问题) ──
+  // ── PVP: stateRefs for accessing current state in WS handlers ──
   const stateRefs = useRef({
     myTeam: [] as Cricket[], enemyTeam: [] as Cricket[],
     myIdx: 0, enemyIdx: 0, myHp: 0, myStamina: 0, mySpirit: 0,
@@ -212,7 +218,6 @@ export default function BattlePage({ params }: { params: Promise<{ roomId: strin
     roundCount: 0, waitingForAction: false,
   });
 
-  // 同步 refs 到 state
   useEffect(() => {
     stateRefs.current.myTeam = myTeam;
     stateRefs.current.enemyTeam = enemyTeam;
@@ -228,179 +233,165 @@ export default function BattlePage({ params }: { params: Promise<{ roomId: strin
     stateRefs.current.waitingForAction = waitingForAction;
   });
 
-  const handlePvpMessage = useCallback((data: string) => {
-    try {
-      const msg = JSON.parse(data);
-      const s = stateRefs.current;
-
-      // 收到蛐蛐战斗数据
-      if (msg.type === "battle:data") {
-        const d = msg.payload as { myCrickets: Cricket[], enemyCrickets: Cricket[], myIdx: number, enemyIdx: number, myScore: number, enemyScore: number, battleMode?: string };
-        setMyTeam(d.myCrickets);
-        setEnemyTeam(d.enemyCrickets);
-        setMyIdx(d.myIdx ?? 0);
-        setEnemyIdx(d.enemyIdx ?? 0);
-        if (d.myCrickets.length > 0) {
-          const c = d.myCrickets[d.myIdx ?? 0];
-          setMyHp(c.hp); setMyStamina(c.stamina); setMySpirit(c.spirit);
-        }
-        if (d.enemyCrickets.length > 0) {
-          const c = d.enemyCrickets[d.enemyIdx ?? 0];
-          setEnemyHp(c.hp); setEnemyStamina(c.stamina); setEnemySpirit(c.spirit);
-        }
-        setPvpPhase("battling");
-        setWaitingForAction(true);
-        addLog("战斗开始！");
-        return;
-      }
-
-      // 收到回合结算 (视角已由服务端转换)
-      if (msg.type === "battle:roundResult") {
-        const r = msg.payload as {
-          myAction: Action; enemyAction: Action;
-          myDamage: number; enemyDamage: number;
-          myHp: number; myStamina: number; mySpirit: number;
-          enemyHp: number; enemyStamina: number; enemySpirit: number;
-          myBlocked: boolean; enemyBlocked: boolean;
-          myCounter: number; enemyCounter: number;
-          myStaminaDelta: number; mySpiritDelta: number;
-          enemyStaminaDelta: number; enemySpiritDelta: number;
-          myDefeated: boolean; enemyDefeated: boolean;
-        };
-        setLastMyAction(r.myAction);
-        setLastEnemyAction(r.enemyAction);
-        setWaitingForAction(false);
-
-        const myName = s.myTeam[s.myIdx]?.name || "我方";
-        const enemyName = s.enemyTeam[s.enemyIdx]?.name || "对方";
-        addLog("--- 第" + (s.roundCount + 1) + "回合 ---");
-        addLog(myName + " -> " + ACTION_LABEL[r.myAction]);
-        addLog(enemyName + " -> " + ACTION_LABEL[r.enemyAction]);
-
-        setMyOffset(-55);
-        setEnemyOffset(55);
-
-        setTimeout(() => {
-          if (r.enemyDamage > 0) {
-            setShowDamage({ dmg: -r.enemyDamage, target: "enemy" });
-            addLog(myName + " 造成 " + r.enemyDamage + " 伤害" + (r.myCounter > 1 ? " (克制x" + r.myCounter + ")" : ""));
-          }
-          if (r.myDamage > 0) {
-            setShowDamage({ dmg: -r.myDamage, target: "me" });
-            addLog(enemyName + " 造成 " + r.myDamage + " 伤害" + (r.enemyCounter > 1 ? " (克制x" + r.enemyCounter + ")" : ""));
-          }
-          // myBlocked: 敌方格挡了我的攻击
-          if (r.myBlocked) {
-            const pct = Math.round(BLOCK_REDUCTION[r.myAction === "heavy_strike" ? "vs_heavy_strike" : "vs_feint"] * 100);
-            addLog(enemyName + " 格挡，减免 " + pct + "% 伤害");
-          }
-          // enemyBlocked: 我方格挡了敌方攻击
-          if (r.enemyBlocked) {
-            const pct = Math.round(BLOCK_REDUCTION[r.enemyAction === "heavy_strike" ? "vs_heavy_strike" : "vs_feint"] * 100);
-            addLog(myName + " 格挡，减免 " + pct + "% 伤害");
-          }
-
-          setMyHp(r.myHp); setMyStamina(r.myStamina); setMySpirit(r.mySpirit);
-          setEnemyHp(r.enemyHp); setEnemyStamina(r.enemyStamina); setEnemySpirit(r.enemySpirit);
-          if (r.myStaminaDelta) addLog(myName + " 耐力 " + (r.myStaminaDelta > 0 ? "+" : "") + r.myStaminaDelta);
-          if (r.enemyStaminaDelta) addLog(enemyName + " 耐力 " + (r.enemyStaminaDelta > 0 ? "+" : "") + r.enemyStaminaDelta);
-          if (r.mySpiritDelta) addLog(myName + " 斗性 " + (r.mySpiritDelta > 0 ? "+" : "") + r.mySpiritDelta);
-          if (r.enemySpiritDelta) addLog(enemyName + " 斗性 " + (r.enemySpiritDelta > 0 ? "+" : "") + r.enemySpiritDelta);
-          setTimeout(() => setShowDamage(null), 900);
-        }, 400);
-
-        setTimeout(() => {
-          setMyOffset(0); setEnemyOffset(0);
-          const angle = (Math.random() < 0.5 ? 1 : -1) * (20 + Math.random() * 70);
-          setAxisAngle(Math.round(angle));
-        }, 800);
-
-        setRoundCount(c => c + 1);
-
-        setTimeout(() => {
-          setLastMyAction(null); setLastEnemyAction(null);
-          setShowDamage(null);
-          if (!r.myDefeated && !r.enemyDefeated) {
-            setShowRoundEnd(true);
-            setTimeout(() => {
-              setShowRoundEnd(false);
-              setWaitingForAction(true);
-            }, 800);
-          }
-        }, 1200);
-        return;
-      }
-
-      // 局间
-      if (msg.type === "battle:roundWin") {
-        setPvpPhase("roundEnd");
-        setWaitingForAction(false);
-        const r = msg.payload as { winner: string; myScore: number; enemyScore: number; defeatedCricket: { side: string; name: string; title: string } | null };
-        const iWon = r.winner === "me";
-        addLog((iWon ? "我方" : "对方") + "赢得本局！比分 " + r.myScore + ":" + r.enemyScore);
-        if (r.defeatedCricket) addLog(r.defeatedCricket.name + " 战败");
-        return;
-      }
-
-      // 终局
-      if (msg.type === "battle:gameOver") {
-        setPvpPhase("finished");
-        const r = msg.payload as { winner: string; myScore: number; enemyScore: number; reason?: string };
-        setPvpGameOver({ winner: r.winner, myScore: r.myScore, enemyScore: r.enemyScore });
-        return;
-      }
-
-      // 败阵换蛐蛐
-      if (msg.type === "battle:cricketChange") {
-        const r = msg.payload as { myCricket: Cricket; enemyCricket: Cricket; myIdx: number; enemyIdx: number };
-        setMyIdx(r.myIdx); setEnemyIdx(r.enemyIdx);
-        setMyHp(r.myCricket.hp); setMyStamina(r.myCricket.stamina); setMySpirit(r.myCricket.spirit);
-        setEnemyHp(r.enemyCricket.hp); setEnemyStamina(r.enemyCricket.stamina); setEnemySpirit(r.enemyCricket.spirit);
-        addLog("换蛐蛐: 我方->" + r.myCricket.name + " 对方->" + r.enemyCricket.name);
-        setPvpPhase("battling");
-        setWaitingForAction(true);
-        return;
-      }
-
-      if (msg.type === "room:error") addLog("错误: " + String(msg.payload.message));
-    } catch {}
-  }, [addLog]);
-
-  // ── PVP: 连接 WS ──
+  // ── PVP: Register WS handlers via on/off ──
   useEffect(() => {
-    if (isPractice || !myUid) return;
+    if (!wsReady) return;
 
-    const protocol = window.location.protocol === "https:" ? "wss" : "ws";
-    const envHost = process.env.NEXT_PUBLIC_WS_HOST;
-    const host = (envHost && envHost !== "localhost") ? envHost : window.location.hostname;
-    const port = process.env.NEXT_PUBLIC_WS_PORT || "3001";
-    const wsUrl = protocol + "://" + host + ":" + port + "/ws/battle";
-    const ws = new WebSocket(wsUrl);
-    wsRef.current = ws;
-
-    ws.onopen = () => {
-      ws.send(JSON.stringify({ type: "room:join", payload: { roomId: roomId.toUpperCase(), uid: myUid, nickName: "玩家" } }));
+    const handleBattleData = (payload: unknown) => {
+      const d = payload as { myCrickets: Cricket[], enemyCrickets: Cricket[], myIdx: number, enemyIdx: number, myScore: number, enemyScore: number, battleMode?: string };
+      setMyTeam(d.myCrickets);
+      setEnemyTeam(d.enemyCrickets);
+      setMyIdx(d.myIdx ?? 0);
+      setEnemyIdx(d.enemyIdx ?? 0);
+      if (d.myCrickets.length > 0) {
+        const c = d.myCrickets[d.myIdx ?? 0];
+        setMyHp(c.hp); setMyStamina(c.stamina); setMySpirit(c.spirit);
+      }
+      if (d.enemyCrickets.length > 0) {
+        const c = d.enemyCrickets[d.enemyIdx ?? 0];
+        setEnemyHp(c.hp); setEnemyStamina(c.stamina); setEnemySpirit(c.spirit);
+      }
+      setPvpPhase("battling");
+      setWaitingForAction(true);
+      addLog("战斗开始！");
     };
-    ws.onmessage = (e) => handlePvpMessage(e.data);
 
-    return () => { ws.close(); };
-  }, [isPractice, myUid, roomId, handlePvpMessage]);
+    const handleRoundResult = (payload: unknown) => {
+      const r = payload as {
+        myAction: Action; enemyAction: Action;
+        myDamage: number; enemyDamage: number;
+        myHp: number; myStamina: number; mySpirit: number;
+        enemyHp: number; enemyStamina: number; enemySpirit: number;
+        myBlocked: boolean; enemyBlocked: boolean;
+        myCounter: number; enemyCounter: number;
+        myStaminaDelta: number; mySpiritDelta: number;
+        enemyStaminaDelta: number; enemySpiritDelta: number;
+        myDefeated: boolean; enemyDefeated: boolean;
+      };
+      const s = stateRefs.current;
+      setLastMyAction(r.myAction);
+      setLastEnemyAction(r.enemyAction);
+      setWaitingForAction(false);
+
+      const myName = s.myTeam[s.myIdx]?.name || "我方";
+      const enemyName = s.enemyTeam[s.enemyIdx]?.name || "对方";
+      addLog("--- 第" + (s.roundCount + 1) + "回合 ---");
+      addLog(myName + " -> " + ACTION_LABEL[r.myAction]);
+      addLog(enemyName + " -> " + ACTION_LABEL[r.enemyAction]);
+
+      setMyOffset(-55);
+      setEnemyOffset(55);
+
+      setTimeout(() => {
+        if (r.enemyDamage > 0) {
+          setShowDamage({ dmg: -r.enemyDamage, target: "enemy" });
+          addLog(myName + " 造成 " + r.enemyDamage + " 伤害" + (r.myCounter > 1 ? " (克制x" + r.myCounter + ")" : ""));
+        }
+        if (r.myDamage > 0) {
+          setShowDamage({ dmg: -r.myDamage, target: "me" });
+          addLog(enemyName + " 造成 " + r.myDamage + " 伤害" + (r.enemyCounter > 1 ? " (克制x" + r.enemyCounter + ")" : ""));
+        }
+        if (r.myBlocked) {
+          const pct = Math.round(BLOCK_REDUCTION[r.myAction === "heavy_strike" ? "vs_heavy_strike" : "vs_feint"] * 100);
+          addLog(enemyName + " 格挡，减免 " + pct + "% 伤害");
+        }
+        if (r.enemyBlocked) {
+          const pct = Math.round(BLOCK_REDUCTION[r.enemyAction === "heavy_strike" ? "vs_heavy_strike" : "vs_feint"] * 100);
+          addLog(myName + " 格挡，减免 " + pct + "% 伤害");
+        }
+
+        setMyHp(r.myHp); setMyStamina(r.myStamina); setMySpirit(r.mySpirit);
+        setEnemyHp(r.enemyHp); setEnemyStamina(r.enemyStamina); setEnemySpirit(r.enemySpirit);
+        if (r.myStaminaDelta) addLog(myName + " 耐力 " + (r.myStaminaDelta > 0 ? "+" : "") + r.myStaminaDelta);
+        if (r.enemyStaminaDelta) addLog(enemyName + " 耐力 " + (r.enemyStaminaDelta > 0 ? "+" : "") + r.enemyStaminaDelta);
+        if (r.mySpiritDelta) addLog(myName + " 斗性 " + (r.mySpiritDelta > 0 ? "+" : "") + r.mySpiritDelta);
+        if (r.enemySpiritDelta) addLog(enemyName + " 斗性 " + (r.enemySpiritDelta > 0 ? "+" : "") + r.enemySpiritDelta);
+        setTimeout(() => setShowDamage(null), 450);
+      }, 200);
+
+      setTimeout(() => {
+        setMyOffset(0); setEnemyOffset(0);
+        const angle = (Math.random() < 0.5 ? 1 : -1) * (20 + Math.random() * 70);
+        setAxisAngle(Math.round(angle));
+      }, 400);
+
+      setRoundCount(c => c + 1);
+
+      setTimeout(() => {
+        setLastMyAction(null); setLastEnemyAction(null);
+        setShowDamage(null);
+        if (!r.myDefeated && !r.enemyDefeated) {
+          setShowRoundEnd(true);
+          setTimeout(() => {
+            setShowRoundEnd(false);
+            setWaitingForAction(true);
+          }, 400);
+        }
+      }, 600);
+    };
+
+    const handleRoundWin = (payload: unknown) => {
+      setPvpPhase("roundEnd");
+      setWaitingForAction(false);
+      const r = payload as { winner: string; myScore: number; enemyScore: number; defeatedCricket: { side: string; name: string; title: string } | null };
+      const iWon = r.winner === "me";
+      addLog((iWon ? "我方" : "对方") + "赢得本局！比分 " + r.myScore + ":" + r.enemyScore);
+      if (r.defeatedCricket) addLog(r.defeatedCricket.name + " 战败");
+    };
+
+    const handleGameOver = (payload: unknown) => {
+      setPvpPhase("finished");
+      const r = payload as { winner: string; myScore: number; enemyScore: number; reason?: string };
+      setPvpGameOver({ winner: r.winner, myScore: r.myScore, enemyScore: r.enemyScore });
+    };
+
+    const handleCricketChange = (payload: unknown) => {
+      const r = payload as { myCricket: Cricket; enemyCricket: Cricket; myIdx: number; enemyIdx: number };
+      setMyIdx(r.myIdx); setEnemyIdx(r.enemyIdx);
+      setMyHp(r.myCricket.hp); setMyStamina(r.myCricket.stamina); setMySpirit(r.myCricket.spirit);
+      setEnemyHp(r.enemyCricket.hp); setEnemyStamina(r.enemyCricket.stamina); setEnemySpirit(r.enemyCricket.spirit);
+      addLog("换蛐蛐: 我方->" + r.myCricket.name + " 对方->" + r.enemyCricket.name);
+      setPvpPhase("battling");
+      setWaitingForAction(true);
+    };
+
+    const handleError = (payload: unknown) => {
+      const p = payload as { message?: string };
+      addLog("错误: " + String(p.message));
+    };
+
+    // Send room:join on connect
+    send("room:join", { roomId: roomId.toUpperCase(), uid: myUid, nickName: "玩家" });
+
+    on("battle:data", handleBattleData);
+    on("battle:roundResult", handleRoundResult);
+    on("battle:roundWin", handleRoundWin);
+    on("battle:gameOver", handleGameOver);
+    on("battle:cricketChange", handleCricketChange);
+    on("room:error", handleError);
+
+    return () => {
+      off("battle:data", handleBattleData);
+      off("battle:roundResult", handleRoundResult);
+      off("battle:roundWin", handleRoundWin);
+      off("battle:gameOver", handleGameOver);
+      off("battle:cricketChange", handleCricketChange);
+      off("room:error", handleError);
+    };
+  }, [wsReady, myUid, roomId]);
 
   // ── PVP: 发送动作 ──
   const sendAction = (action: Action) => {
-    if (!waitingForAction || !wsRef.current) return;
+    if (!waitingForAction) return;
     setWaitingForAction(false);
-    wsRef.current.send(JSON.stringify({
-      type: "battle:action",
-      payload: { roomId: roomId.toUpperCase(), uid: myUid, action },
-    }));
+    send("battle:action", { roomId: roomId.toUpperCase(), uid: myUid, action });
   };
 
   // 自动发送随机动作
   useEffect(() => {
     if (!isPractice && pvpPhase === "battling" && waitingForAction) {
       const actions: Action[] = ["heavy_strike", "feint", "block", "chirp"];
-      const timer = setTimeout(() => sendAction(actions[Math.floor(Math.random() * 4)]), 1500);
+      const timer = setTimeout(() => sendAction(actions[Math.floor(Math.random() * 4)]), 750);
       return () => clearTimeout(timer);
     }
   }, [isPractice, pvpPhase, waitingForAction, roundCount]);
@@ -408,85 +399,137 @@ export default function BattlePage({ params }: { params: Promise<{ roomId: strin
   // 局间自动继续
   useEffect(() => {
     if (!isPractice && pvpPhase === "roundEnd") {
-      const timer = setTimeout(() => sendNextRound(), AUTO_READY_DELAY);
+      const timer = setTimeout(() => sendNextRound(), Math.round(AUTO_READY_DELAY / 2));
       return () => clearTimeout(timer);
     }
   }, [isPractice, pvpPhase, roundCount]);
 
   // ── PVP: 局间下一局 ──
   const sendNextRound = () => {
-    wsRef.current?.send(JSON.stringify({
-      type: "battle:nextRound",
-      payload: { roomId: roomId.toUpperCase(), uid: myUid },
-    }));
+    send("battle:nextRound", { roomId: roomId.toUpperCase(), uid: myUid });
   };
 
-  // ── 训练模式执行回合 ──
+  // ── 训练模式状态 ──
+  const [aiTeam] = useState(TRAIN_AI_TEAM);
+  const [playerTeam, setPlayerTeam] = useState<Cricket[]>([]);
+  const [currentAiIdx, setCurrentAiIdx] = useState(0);
+  const [currentPlayerIdx, setCurrentPlayerIdx] = useState(0);
+  const [trainRoundCount, setTrainRoundCount] = useState(0);
+  const [trainGameOver, setTrainGameOver] = useState(false);
+  const [trainWinner, setTrainWinner] = useState("");
+  const [trainAttacking, setTrainAttacking] = useState(false);
+
+  // Load player team from backpack for practice mode
+  useEffect(() => {
+    if (!isPractice || !myUid) return;
+    (async () => {
+      try {
+        const data = await api.getCrickets();
+        const crickets = data.crickets;
+        if (crickets.length >= 3) {
+          // Take first 3 crickets from backpack
+          const team = crickets.slice(0, 3).map(uc => {
+            const t = uc.template as CricketTemplate;
+            return {
+              id: t.id,
+              name: t.name,
+              title: t.title,
+              tier: t.tier,
+              maxHp: t.hpBase,
+              hp: t.hpBase,
+              maxStamina: t.staminaBase,
+              stamina: t.staminaBase,
+              spirit: t.spiritBase,
+              attack: t.attack,
+              defense: t.defense,
+              speed: t.speed,
+              trait: t.trait,
+            } as Cricket;
+          });
+          setPlayerTeam(team);
+        } else {
+          // Not enough crickets — fallback to hardcoded
+          setPlayerTeam(TRAIN_PLAYER_TEAM);
+        }
+      } catch {
+        setPlayerTeam(TRAIN_PLAYER_TEAM);
+      }
+    })();
+  }, [isPractice, myUid]);
+
   const ai = aiTeam[currentAiIdx];
-  const player = playerTeam[currentPlayerIdx];
-  const [trainAiHp, setTrainAiHp] = useState(ai.hp);
-  const [trainAiStamina, setTrainAiStamina] = useState(ai.stamina);
-  const [trainAiSpirit, setTrainAiSpirit] = useState(ai.spirit);
-  const [trainPlayerHp, setTrainPlayerHp] = useState(player.hp);
-  const [trainPlayerStamina, setTrainPlayerStamina] = useState(player.stamina);
-  const [trainPlayerSpirit, setTrainPlayerSpirit] = useState(player.spirit);
+  const player = playerTeam.length > 0 ? playerTeam[currentPlayerIdx] : null;
+  // Avoid crashes while team loads — use placeholder values, will reset once loaded
+  const [trainAiHp, setTrainAiHp] = useState(ai?.hp ?? 0);
+  const [trainAiStamina, setTrainAiStamina] = useState(ai?.stamina ?? 0);
+  const [trainAiSpirit, setTrainAiSpirit] = useState(ai?.spirit ?? 0);
+  const [trainPlayerHp, setTrainPlayerHp] = useState(player?.hp ?? 0);
+  const [trainPlayerStamina, setTrainPlayerStamina] = useState(player?.stamina ?? 0);
+  const [trainPlayerSpirit, setTrainPlayerSpirit] = useState(player?.spirit ?? 0);
 
-  useEffect(() => { setTrainAiHp(ai.hp); setTrainAiStamina(ai.stamina); setTrainAiSpirit(ai.spirit); }, [ai]);
-  useEffect(() => { setTrainPlayerHp(player.hp); setTrainPlayerStamina(player.stamina); setTrainPlayerSpirit(player.spirit); }, [player]);
+  useEffect(() => { if (ai) { setTrainAiHp(ai.hp); setTrainAiStamina(ai.stamina); setTrainAiSpirit(ai.spirit); } }, [ai]);
+  useEffect(() => { if (player) { setTrainPlayerHp(player.hp); setTrainPlayerStamina(player.stamina); setTrainPlayerSpirit(player.spirit); } }, [player]);
 
-  const executeRound = useCallback((pAction: Action) => {
+  // ── 训练模式：局部状态 ref ──
+  const trainRef = useRef({ round: 0, running: false, over: false, p: null as Cricket | null, a: null as Cricket | null,
+    pHp: 0, pSta: 0, pSpi: 0, aHp: 0, aSta: 0, aSpi: 0,
+  });
+  trainRef.current.p = player;
+  trainRef.current.a = ai;
+  trainRef.current.over = trainGameOver;
+  trainRef.current.pHp = trainPlayerHp;
+  trainRef.current.pSta = trainPlayerStamina;
+  trainRef.current.pSpi = trainPlayerSpirit;
+  trainRef.current.aHp = trainAiHp;
+  trainRef.current.aSta = trainAiStamina;
+  trainRef.current.aSpi = trainAiSpirit;
+
+  // 单次训练回合
+  const doTrainRound = useCallback(() => {
+    const tr = trainRef.current;
+    if (tr.running || tr.over || !tr.p || !tr.a) return;
+    tr.running = true;
     setTrainAttacking(true);
+    const pAction = ["heavy_strike", "feint", "block", "chirp"][Math.floor(Math.random() * 4)] as Action;
     const aAction = aiAction();
+    const p = tr.p;
+    const a = tr.a;
 
-    const pState: CricketBattleState = { attack: player.attack, defense: player.defense, speed: player.speed, maxHp: player.maxHp, hp: trainPlayerHp, stamina: trainPlayerStamina, spirit: trainPlayerSpirit, trait: player.trait };
-    const aState: CricketBattleState = { attack: ai.attack, defense: ai.defense, speed: ai.speed, maxHp: ai.maxHp, hp: trainAiHp, stamina: trainAiStamina, spirit: trainAiSpirit, trait: ai.trait };
+    const pState: BattleCalcInput = { attack: p.attack, defense: p.defense, speed: p.speed, maxHp: p.maxHp, hp: tr.pHp, stamina: tr.pSta, spirit: tr.pSpi, trait: p.trait };
+    const aState: BattleCalcInput = { attack: a.attack, defense: a.defense, speed: a.speed, maxHp: a.maxHp, hp: tr.aHp, stamina: tr.aSta, spirit: tr.aSpi, trait: a.trait };
     const result = calcRoundResult(pState, aState, pAction, aAction);
 
+    const rnd = tr.round + 1;
+    tr.round = rnd;
+    setTrainRoundCount(rnd);
     setMyOffset(-55); setEnemyOffset(55);
-    addLog("--- 第" + (trainRoundCount + 1) + "回合 ---");
-    addLog(player.name + " -> " + ACTION_LABEL[pAction]);
-    addLog(ai.name + " -> " + ACTION_LABEL[aAction]);
+    addLog("--- 第" + rnd + "回合 ---");
+    addLog(p.name + " -> " + ACTION_LABEL[pAction]);
+    addLog(a.name + " -> " + ACTION_LABEL[aAction]);
 
+    const pDmg = result.defenderResult.damage;
+    const aDmg = result.attackerResult.damage;
     setTimeout(() => {
-      if (result.attackerResult.damage > 0) {
-        setShowDamage({ dmg: -result.attackerResult.damage, target: "enemy" });
-        setTrainAiHp(h => Math.max(0, h - result.attackerResult.damage));
-        addLog(player.name + " 造成 " + result.attackerResult.damage + " 伤害" + (result.attackerResult.counterApplied > 1 ? " (克制x" + result.attackerResult.counterApplied + ")" : ""));
-      }
-      if (result.defenderResult.damage > 0) {
-        setShowDamage({ dmg: -result.defenderResult.damage, target: "me" });
-        setTrainPlayerHp(h => Math.max(0, h - result.defenderResult.damage));
-        addLog(ai.name + " 造成 " + result.defenderResult.damage + " 伤害" + (result.defenderResult.counterApplied > 1 ? " (克制x" + result.defenderResult.counterApplied + ")" : ""));
-      }
-      if (result.attackerResult.isBlocked) {
-        const pct = Math.round(BLOCK_REDUCTION[pAction === "heavy_strike" ? "vs_heavy_strike" : "vs_feint"] * 100);
-        addLog(ai.name + " 格挡，减免 " + pct + "% 伤害");
-      }
-      if (result.defenderResult.isBlocked) {
-        const pct = Math.round(BLOCK_REDUCTION[aAction === "heavy_strike" ? "vs_heavy_strike" : "vs_feint"] * 100);
-        addLog(player.name + " 格挡，减免 " + pct + "% 伤害");
-      }
-      if (result.attackerResult.staminaDelta) addLog(player.name + " 耐力 " + (result.attackerResult.staminaDelta > 0 ? "+" : "") + result.attackerResult.staminaDelta);
-      if (result.defenderResult.staminaDelta) addLog(ai.name + " 耐力 " + (result.defenderResult.staminaDelta > 0 ? "+" : "") + result.defenderResult.staminaDelta);
-      if (result.attackerResult.spiritDelta) addLog(player.name + " 斗性 " + (result.attackerResult.spiritDelta > 0 ? "+" : "") + result.attackerResult.spiritDelta);
-      if (result.defenderResult.spiritDelta) addLog(ai.name + " 斗性 " + (result.defenderResult.spiritDelta > 0 ? "+" : "") + result.defenderResult.spiritDelta);
-      setTimeout(() => setShowDamage(null), 900);
-    }, 400);
+      if (aDmg > 0) { setShowDamage({ dmg: -aDmg, target: "enemy" }); setTrainAiHp(h => Math.max(0, h - aDmg)); addLog(p.name + " 造成 " + aDmg + " 伤害" + (result.attackerResult.counterApplied > 1 ? " (克制x" + result.attackerResult.counterApplied + ")" : "")); }
+      if (pDmg > 0) { setShowDamage({ dmg: -pDmg, target: "me" });   setTrainPlayerHp(h => Math.max(0, h - pDmg)); addLog(a.name + " 造成 " + pDmg + " 伤害" + (result.defenderResult.counterApplied > 1 ? " (克制x" + result.defenderResult.counterApplied + ")" : "")); }
+      if (result.attackerResult.isBlocked) addLog(a.name + " 格挡，减免 " + Math.round(BLOCK_REDUCTION[pAction === "heavy_strike" ? "vs_heavy_strike" : "vs_feint"] * 100) + "% 伤害");
+      if (result.defenderResult.isBlocked) addLog(p.name + " 格挡，减免 " + Math.round(BLOCK_REDUCTION[aAction === "heavy_strike" ? "vs_heavy_strike" : "vs_feint"] * 100) + "% 伤害");
+      if (result.attackerResult.staminaDelta) addLog(p.name + " 耐力 " + (result.attackerResult.staminaDelta > 0 ? "+" : "") + result.attackerResult.staminaDelta);
+      if (result.defenderResult.staminaDelta) addLog(a.name + " 耐力 " + (result.defenderResult.staminaDelta > 0 ? "+" : "") + result.defenderResult.staminaDelta);
+      if (result.attackerResult.spiritDelta) addLog(p.name + " 斗性 " + (result.attackerResult.spiritDelta > 0 ? "+" : "") + result.attackerResult.spiritDelta);
+      if (result.defenderResult.spiritDelta) addLog(a.name + " 斗性 " + (result.defenderResult.spiritDelta > 0 ? "+" : "") + result.defenderResult.spiritDelta);
+      setTimeout(() => setShowDamage(null), 450);
+    }, 200);
+    setTimeout(() => { setMyOffset(0); setEnemyOffset(0); const ang = (Math.random() < 0.5 ? 1 : -1) * (20 + Math.random() * 70); setAxisAngle(Math.round(ang)); }, 400);
+    setTimeout(() => { setLastMyAction(null); setLastEnemyAction(null); setShowDamage(null); tr.running = false; setTrainAttacking(false); }, 600);
+  }, []);
 
-    setTimeout(() => {
-      setMyOffset(0); setEnemyOffset(0);
-      const a = (Math.random() < 0.5 ? 1 : -1) * (20 + Math.random() * 70);
-      setAxisAngle(Math.round(a));
-    }, 800);
-    setTrainRoundCount(c => c + 1);
-    setTimeout(() => { setLastMyAction(null); setLastEnemyAction(null); setShowDamage(null); setTrainAttacking(false); }, 1200);
-  }, [player, ai, trainPlayerHp, trainAiHp, trainPlayerStamina, trainAiStamina, trainPlayerSpirit, trainAiSpirit, trainRoundCount]);
-
+  // 训练定时器 — 持续触发回合
   useEffect(() => {
-    if (trainGameOver || trainAttacking || !isPractice) return;
-    const t = setTimeout(() => executeRound(["heavy_strike", "feint", "block", "chirp"][Math.floor(Math.random() * 4)] as Action), 1500);
-    return () => clearTimeout(t);
-  }, [trainGameOver, trainAttacking, trainRoundCount, executeRound, isPractice]);
+    if (!isPractice || trainGameOver) return;
+    const id = setInterval(doTrainRound, 1500);
+    return () => clearInterval(id);
+  }, [isPractice, trainGameOver, doTrainRound]);
 
   useEffect(() => {
     if (trainAiHp <= 0 && isPractice) {
@@ -520,13 +563,23 @@ export default function BattlePage({ params }: { params: Promise<{ roomId: strin
   const isGameOver = isPractice ? trainGameOver : pvpPhase === "finished";
   const winnerText = isPractice ? trainWinner : (pvpGameOver?.winner === "me" ? "你" : "对方");
 
-  if (!myCricket && !isPractice) {
+  if (!myCricket) {
+    if (isPractice && playerTeam.length === 0) {
+      // Training mode — still loading player team from backpack
+      return (
+        <div className="relative w-full h-[100dvh] bg-[var(--color-bg-base)] flex items-center justify-center">
+          <p className="text-[var(--color-text-muted)] font-[family-name:var(--font-noto-serif)]">加载蛐蛐...</p>
+        </div>
+      );
+    }
+    if (!isPractice) {
     return (
       <div className="relative w-full h-[100dvh] bg-[var(--color-bg-base)]">
         <TopBar title="对战" backHref="/" />
         <LoadingOverlay visible message="加载战斗数据..." />
       </div>
     );
+    }
   }
 
   const spiritColorMy = currentMySpirit >= 150 ? "#c5a059" : currentMySpirit >= 100 ? "#8a7040" : "#5a4830";
@@ -544,7 +597,7 @@ export default function BattlePage({ params }: { params: Promise<{ roomId: strin
       <Image src="/assets/backgrounds/bg-battle.webp" alt="" fill unoptimized className="object-cover" priority />
       <div className="absolute inset-0 bg-[var(--color-bg-base)]/60" />
       <TopBar
-        title={isPractice ? "训练模式" : "对战"}
+        title={isPractice ? `训练(${BATTLE_MODE_LABELS[BATTLE_MODE]})` : `对战·${BATTLE_MODE_LABELS[BATTLE_MODE]}`}
         rightWide
         rightSlot={<span className="text-[11px] text-[var(--color-text-muted)] font-[family-name:var(--font-noto-serif)]">第{(isPractice ? trainRoundCount : roundCount)}回合</span>}
         backHref="/"

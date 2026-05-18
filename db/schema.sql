@@ -3,11 +3,13 @@
 
 -- 用户表
 CREATE TABLE IF NOT EXISTS users (
-  uid        VARCHAR(100) PRIMARY KEY,
-  nick_name  VARCHAR(50)  NOT NULL,
-  avatar     TEXT,
-  token      VARCHAR(200) NOT NULL,
-  created_at TIMESTAMPTZ  DEFAULT NOW()
+  uid            VARCHAR(100) PRIMARY KEY,
+  nick_name      VARCHAR(50)  NOT NULL,
+  username       VARCHAR(50)  UNIQUE,
+  password_hash  TEXT,
+  avatar         TEXT,
+  token          VARCHAR(200) NOT NULL,
+  created_at     TIMESTAMPTZ  DEFAULT NOW()
 );
 
 -- 蛐蛐模板表

@@ -1,9 +1,11 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback, Suspense } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useState, useEffect, useRef, Suspense } from "react";
+import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { MapleLeaves } from "@/components/game/MapleLeaves";
+import { useWebSocket } from "@/hooks/useWebSocket";
+import { ensureAuth } from "@/lib/auth";
 
 const imgProps = { unoptimized: true };
 
@@ -30,120 +32,101 @@ export default function MatchmakePage() {
 
 function MatchmakeContent() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const [myUid] = useState(() => searchParams.get("uid") || `user-${Math.random().toString(36).slice(2, 8)}`);
+  const [myUid, setMyUid] = useState("");
+  const [myNickName, setMyNickName] = useState("玩家");
+  const [token, setToken] = useState("");
   const [matchState, setMatchState] = useState<MatchState>("connecting");
   const [errorMsg, setErrorMsg] = useState("");
   const [elapsed, setElapsed] = useState(0);
-  const wsRef = useRef<WebSocket | null>(null);
   const cancelSentRef = useRef(false);
 
-  const connectWs = useCallback(() => {
-    const protocol = window.location.protocol === "https:" ? "wss" : "ws";
-    const envHost = process.env.NEXT_PUBLIC_WS_HOST;
-    const host = (envHost && envHost !== "localhost") ? envHost : window.location.hostname;
-    const port = process.env.NEXT_PUBLIC_WS_PORT || "3001";
-    const wsUrl = `${protocol}://${host}:${port}/ws/battle`;
-    wsRef.current?.close();
-    const ws = new WebSocket(wsUrl);
-    wsRef.current = ws;
-    return ws;
+  // Auth init — redirect to /auth if no JWT
+  useEffect(() => {
+    ensureAuth().then((auth) => {
+      if (!auth) {
+        window.location.href = "/auth";
+        return;
+      }
+      setMyUid(auth.uid);
+      setMyNickName(auth.nickName || "玩家");
+      setToken(auth.token);
+    });
   }, []);
 
-  // 计时器：等待时每秒+1
+  // 计时器
   useEffect(() => {
     if (matchState !== "waiting") { setElapsed(0); return; }
     const id = setInterval(() => setElapsed(s => s + 1), 1000);
     return () => clearInterval(id);
   }, [matchState]);
 
-  // 连接 WS 并发送匹配请求
-  useEffect(() => {
-    cancelSentRef.current = false;
-    const ws = connectWs();
+  // WS connection — use roomId "matchmake" as a placeholder (backend matches on message type)
+  const wsReady = myUid && token;
+  const { send, on, off, onEvent, offEvent } = useWebSocket(wsReady ? "matchmake" : null, token);
 
-    ws.onopen = () => {
-      ws.send(JSON.stringify({ type: "room:matchmake", payload: { uid: myUid, nickName: "玩家" } }));
+  // Send matchmake + register handlers on connect
+  useEffect(() => {
+    if (!wsReady) return;
+    cancelSentRef.current = false;
+    send("room:matchmake", { uid: myUid, nickName: myNickName });
+    setMatchState("waiting");
+
+    const handleMatched = (payload: unknown) => {
+      const p = payload as { roomId: string };
+      cancelSentRef.current = true;
+      setMatchState("matched");
+      setTimeout(() => router.push(`/room/${p.roomId}?uid=${myUid}&from=match`), 600);
+    };
+
+    const handleTimeout = () => setMatchState("timeout");
+    const handleCancelled = () => router.push("/");
+    const handleError = (payload: unknown) => {
+      const p = payload as { message?: string };
+      setErrorMsg(p.message || "匹配失败");
+      setMatchState("error");
+    };
+    const handleWaiting = (payload: unknown) => {
+      const p = payload as { position: number };
       setMatchState("waiting");
     };
 
-    ws.onmessage = (e) => {
-      try {
-        const msg = JSON.parse(e.data);
-        if (msg.type === "room:matched") {
-          cancelSentRef.current = true;
-          setMatchState("matched");
-          const roomId = msg.payload.roomId;
-          setTimeout(() => {
-            router.push(`/room/${roomId}?uid=${myUid}&from=match`);
-          }, 600);
-        } else if (msg.type === "room:matchmake.timeout") {
-          setMatchState("timeout");
-        } else if (msg.type === "room:matchmake.cancelled") {
-          // 取消成功 → 返回首页
-          router.push("/");
-        } else if (msg.type === "room:error") {
-          setErrorMsg(msg.payload.message || "匹配失败");
-          setMatchState("error");
-        }
-      } catch {}
+    // WS 重连后重新发送匹配请求
+    const handleReconnect = () => {
+      if (!cancelSentRef.current) {
+        send("room:matchmake", { uid: myUid, nickName: myNickName });
+      }
     };
 
-    ws.onerror = () => {
-      setErrorMsg("网络连接失败");
-      setMatchState("error");
-    };
+    on("room:matched", handleMatched);
+    on("room:matchmake.timeout", handleTimeout);
+    on("room:matchmake.cancelled", handleCancelled);
+    on("room:error", handleError);
+    on("room:matchmake.waiting", handleWaiting);
+    onEvent("reconnect", handleReconnect);
 
     return () => {
-      // 组件卸载时取消匹配（除非已经匹配成功）
-      if (!cancelSentRef.current && wsRef.current?.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: "room:matchmake.cancel", payload: { uid: myUid } }));
-      }
-      ws.close();
+      if (!cancelSentRef.current) send("room:matchmake.cancel", { uid: myUid });
+      off("room:matched", handleMatched);
+      off("room:matchmake.timeout", handleTimeout);
+      off("room:matchmake.cancelled", handleCancelled);
+      off("room:error", handleError);
+      off("room:matchmake.waiting", handleWaiting);
+      offEvent("reconnect", handleReconnect);
     };
-  }, [myUid, connectWs, router]);
+  }, [wsReady, myUid, myNickName]);
 
-  // 手动取消匹配
   const handleCancel = () => {
     cancelSentRef.current = true;
-    const ws = wsRef.current;
-    if (ws?.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({ type: "room:matchmake.cancel", payload: { uid: myUid } }));
-    }
-    ws?.close();
-    wsRef.current = null;
+    send("room:matchmake.cancel", { uid: myUid });
     router.push("/");
   };
 
-  // 超时后重试
   const handleRetry = () => {
     setMatchState("connecting");
     setErrorMsg("");
-    const ws = connectWs();
-    ws.onopen = () => {
-      ws.send(JSON.stringify({ type: "room:matchmake", payload: { uid: myUid, nickName: "玩家" } }));
-      setMatchState("waiting");
-    };
-    ws.onmessage = (e) => {
-      try {
-        const msg = JSON.parse(e.data);
-        if (msg.type === "room:matched") {
-          setMatchState("matched");
-          setTimeout(() => router.push(`/room/${msg.payload.roomId}?uid=${myUid}&from=match`), 600);
-        } else if (msg.type === "room:matchmake.timeout") {
-          setMatchState("timeout");
-        } else if (msg.type === "room:matchmake.cancelled") {
-          router.push("/");
-        } else if (msg.type === "room:error") {
-          setErrorMsg(msg.payload.message || "匹配失败");
-          setMatchState("error");
-        }
-      } catch {}
-    };
-    ws.onerror = () => {
-      setErrorMsg("网络连接失败");
-      setMatchState("error");
-    };
+    cancelSentRef.current = false;
+    send("room:matchmake", { uid: myUid, nickName: myNickName });
+    setMatchState("waiting");
   };
 
   const isLoading = matchState === "connecting" || matchState === "waiting";
@@ -153,11 +136,10 @@ function MatchmakeContent() {
       <div className="absolute inset-0 bg-[var(--color-bg-base)]" />
       <MapleLeaves />
 
-      {/* Top bar */}
       <header className="relative z-[10] flex items-center justify-between px-4 h-[60px]">
         <div className="flex items-center gap-3">
           <Image src="/assets/avatars/avatar-default.png" alt="头像" width={48} height={48} className="rounded-full border border-[var(--color-gold)]/50" {...imgProps} />
-          <span className="text-[var(--color-text-primary)] text-base truncate font-[family-name:var(--font-noto-serif)]">玩家</span>
+          <span className="text-[var(--color-text-primary)] text-base truncate font-[family-name:var(--font-noto-serif)]">{myNickName}</span>
         </div>
         <button type="button" onClick={handleCancel}
           className="h-9 px-3 rounded-lg border border-[var(--color-gold)]/25 bg-[rgba(197,160,89,0.06)] text-[13px] text-[var(--color-text-muted)] font-[family-name:var(--font-noto-serif)] hover:border-[var(--color-gold)]/50 hover:text-[var(--color-text-secondary)] transition-all">
@@ -165,17 +147,14 @@ function MatchmakeContent() {
         </button>
       </header>
 
-      {/* 匹配区域 */}
       <section className="relative z-[10] flex flex-col items-center justify-center px-4" style={{ height: "calc(100dvh - 60px)" }}>
         {matchState === "matched" ? (
-          /* ── 匹配成功 ── */
           <div className="flex flex-col items-center gap-4 animate-pulse">
             <Image src="/assets/crickets/cricket-001.png" alt="匹配成功" width={200} height={200} {...imgProps} className="object-contain" />
             <p className="text-[28px] font-bold text-[var(--color-gold)] font-[family-name:var(--font-ma-shan)]">棋逢对手！</p>
             <p className="text-[14px] text-[var(--color-text-secondary)] font-[family-name:var(--font-noto-serif)]">即将进入房间...</p>
           </div>
         ) : matchState === "timeout" ? (
-          /* ── 匹配超时 ── */
           <div className="flex flex-col items-center gap-6">
             <div className="w-[220px] h-[200px] rounded-xl border border-[var(--color-gold)]/15 bg-[var(--color-bg-base)]/60 flex items-center justify-center">
               <p className="text-[56px] opacity-30">⏳</p>
@@ -191,7 +170,6 @@ function MatchmakeContent() {
             </button>
           </div>
         ) : matchState === "error" ? (
-          /* ── 匹配失败 ── */
           <div className="flex flex-col items-center gap-6">
             <div className="w-[220px] h-[200px] rounded-xl border border-[var(--color-gold)]/15 bg-[var(--color-bg-base)]/60 flex items-center justify-center">
               <p className="text-[56px] opacity-30">⚠</p>
@@ -207,9 +185,7 @@ function MatchmakeContent() {
             </button>
           </div>
         ) : (
-          /* ── 匹配中 ── */
           <div className="flex flex-col items-center gap-6">
-            {/* 蛐蛐装饰图 */}
             <div className="w-[220px] h-[200px] rounded-xl border border-[var(--color-gold)]/15 bg-[var(--color-bg-base)]/60 flex flex-col items-center justify-center gap-3">
               <Image src="/assets/crickets/cricket-001.png" alt="匹配中" width={140} height={140} {...imgProps} className="object-contain opacity-60" />
               <div className="flex items-center gap-2">
@@ -218,7 +194,6 @@ function MatchmakeContent() {
                 <span className="inline-block w-2 h-2 rounded-full bg-[var(--color-gold)] animate-pulse" style={{ animationDelay: "0.6s" }} />
               </div>
             </div>
-            {/* 状态文字 */}
             <div className="flex flex-col items-center gap-2">
               <p className="text-[22px] font-bold text-[var(--color-gold)] font-[family-name:var(--font-noto-serif)]">
                 {matchState === "connecting" ? "连接中..." : "匹配中..."}
@@ -227,7 +202,6 @@ function MatchmakeContent() {
                 {matchState === "connecting" ? "连接中..." : elapsed < 60 ? `已等待 ${elapsed} 秒` : `已等待 ${Math.floor(elapsed / 60)} 分 ${elapsed % 60} 秒`}
               </p>
             </div>
-            {/* 取消按钮 */}
             <button type="button" onClick={handleCancel}
               className="h-[50px] w-[220px] rounded-[10px] border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.03)] text-[16px] text-[var(--color-text-muted)] font-[family-name:var(--font-noto-serif)] hover:border-[var(--color-gold)]/30 hover:text-[var(--color-text-secondary)] transition-all active:scale-[0.98]">
               取消匹配

@@ -1,10 +1,12 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { MapleLeaves } from "@/components/game/MapleLeaves";
 import { LoadingOverlay } from "@/components/game/LoadingOverlay";
+import { useWebSocket } from "@/hooks/useWebSocket";
+import { ensureAuth, isAuthenticated, logout } from "@/lib/auth";
 
 const imgProps = { unoptimized: true };
 
@@ -13,116 +15,113 @@ const btnClass = "w-[342px] h-[50px] rounded-[10px] border border-[var(--color-g
 type Action = "idle" | "creating" | "joining" | "practice" | "error";
 
 export default function HomePage() {
-  const [myUid] = useState(() => `user-${Math.random().toString(36).slice(2, 8)}`);
+  const [myUid, setMyUid] = useState("");
+  const [nickName, setNickName] = useState("");
+  const [token, setToken] = useState("");
   const [showJoinInput, setShowJoinInput] = useState(false);
   const [roomCode, setRoomCode] = useState("");
   const [action, setAction] = useState<Action>("idle");
   const [errorMsg, setErrorMsg] = useState("");
   const [createdRoomId, setCreatedRoomId] = useState<string | null>(null);
   const [isPracticeMode, setIsPracticeMode] = useState(false);
-  const wsRef = useRef<WebSocket | null>(null);
 
-  const WS_TIMEOUT = 6000;
+  // Auth init
+  useEffect(() => {
+    ensureAuth().then((auth) => {
+      if (auth) {
+        setMyUid(auth.uid);
+        setNickName(auth.nickName);
+        setToken(auth.token);
+      }
+    });
+  }, []);
 
-  const connectWs = () => {
-    const protocol = window.location.protocol === "https:" ? "wss" : "ws";
-    const envHost = process.env.NEXT_PUBLIC_WS_HOST;
-    const host = (envHost && envHost !== "localhost") ? envHost : window.location.hostname;
-    const port = process.env.NEXT_PUBLIC_WS_PORT || "3001";
-    const wsUrl = `${protocol}://${host}:${port}/ws/battle`;
-    wsRef.current?.close();
-    const ws = new WebSocket(wsUrl);
-    wsRef.current = ws;
-    return ws;
-  };
+  // WS — use "lobby" as placeholder roomId
+  const wsReady = myUid && token;
+  const { send, on, off } = useWebSocket(wsReady ? "lobby" : null, token);
 
-  const sendWhenOpen = (ws: WebSocket, msg: string, onTimeout?: () => void) => {
-    if (ws.readyState === WebSocket.OPEN) {
-      ws.send(msg);
-    } else if (ws.readyState === WebSocket.CONNECTING) {
-      let timedOut = false;
-      const timer = setTimeout(() => {
-        timedOut = true;
-        ws.close();
-        onTimeout?.();
-      }, WS_TIMEOUT);
-      ws.onopen = () => {
-        clearTimeout(timer);
-        if (!timedOut) ws.send(msg);
-      };
+  // Register WS handlers
+  useEffect(() => {
+    if (!wsReady) return;
+
+    const handleCreatedOrState = (payload: unknown) => {
+      const p = payload as { roomId: string };
+      if (p.roomId) {
+        setCreatedRoomId(p.roomId);
+        setAction("idle");
+      }
+    };
+
+    const handleJoined = (payload: unknown) => {
+      const p = payload as { roomId: string };
+      if (p.roomId) {
+        setCreatedRoomId(p.roomId);
+        setAction("idle");
+      }
+    };
+
+    const handleError = (payload: unknown) => {
+      const p = payload as { message?: string };
+      setErrorMsg(p.message || "操作失败");
+      setAction("error");
+      setTimeout(() => setAction("idle"), 2000);
+    };
+
+    on("room:created", handleCreatedOrState);
+    on("room:state", handleCreatedOrState);
+    on("room:joined", handleJoined);
+    on("room:error", handleError);
+
+    return () => {
+      off("room:created", handleCreatedOrState);
+      off("room:state", handleCreatedOrState);
+      off("room:joined", handleJoined);
+      off("room:error", handleError);
+    };
+  }, [wsReady]);
+
+  // Navigate on room creation/join
+  useEffect(() => {
+    if (!createdRoomId) return;
+    if (isPracticeMode) {
+      window.location.href = `/battle/${createdRoomId}?mode=practice&uid=${myUid}`;
+    } else {
+      window.location.href = `/room/${createdRoomId}?uid=${myUid}`;
     }
-  };
+  }, [createdRoomId, isPracticeMode, myUid]);
 
-  useEffect(() => { return () => { wsRef.current?.close(); }; }, []);
   useEffect(() => { setIsPracticeMode(false); }, []);
 
   const handleCreateRoom = () => {
     setAction("creating"); setErrorMsg("");
-    const ws = connectWs();
-    ws.onmessage = (e) => {
-      try {
-        const msg = JSON.parse(e.data);
-        if (msg.type === "room:created" || msg.type === "room:state") {
-          if (msg.payload.roomId) { setCreatedRoomId(msg.payload.roomId); setAction("idle"); }
-        } else if (msg.type === "room:error") {
-          setErrorMsg(msg.payload.message || "创建失败"); setAction("error");
-          setTimeout(() => setAction("idle"), 2000);
-        }
-      } catch {}
-    };
-    ws.onerror = () => { setErrorMsg("网络连接失败"); setAction("error"); setTimeout(() => setAction("idle"), 2000); };
-    sendWhenOpen(ws, JSON.stringify({ type: "room:create", payload: { uid: myUid, nickName: "玩家" } }),
-      () => { setErrorMsg("连接服务器超时"); setAction("error"); setTimeout(() => setAction("idle"), 2000); });
+    send("room:create", { uid: myUid, nickName: "玩家" });
   };
 
   const handlePractice = () => {
-    setIsPracticeMode(true); setAction("practice"); setErrorMsg("");
-    const ws = connectWs();
-    ws.onmessage = (e) => {
-      try {
-        const msg = JSON.parse(e.data);
-        if (msg.type === "room:created" || msg.type === "room:state") {
-          if (msg.payload.roomId) { setCreatedRoomId(msg.payload.roomId); setAction("idle"); }
-        } else if (msg.type === "room:error") {
-          setErrorMsg(msg.payload.message || "失败"); setAction("error");
-          setTimeout(() => setAction("idle"), 2000);
-        }
-      } catch {}
-    };
-    ws.onerror = () => { setErrorMsg("网络连接失败"); setAction("error"); setTimeout(() => setAction("idle"), 2000); };
-    sendWhenOpen(ws, JSON.stringify({ type: "room:practice", payload: { uid: myUid, nickName: "玩家" } }),
-      () => { setErrorMsg("连接服务器超时"); setAction("error"); setTimeout(() => setAction("idle"), 2000); });
+    setErrorMsg("");
+    if (!myUid) {
+      setErrorMsg("请先登录"); setAction("error");
+      setTimeout(() => setAction("idle"), 2000);
+      return;
+    }
+    setAction("practice");
+    send("room:practice", { uid: myUid, nickName: "玩家" });
+    // 6秒超时保护
+    const timer = setTimeout(() => {
+      setAction(prev => prev === "practice" ? "error" : prev);
+      setErrorMsg("训练启动超时");
+    }, 6000);
+    const handleResp = () => { clearTimeout(timer); setAction("idle"); };
+    on("room:created", handleResp);
+    on("room:state", handleResp);
+    setTimeout(() => { off("room:created", handleResp); off("room:state", handleResp); if (!createdRoomId) { setAction("idle"); } }, 7000);
   };
 
   const handleJoinRoom = () => {
     if (roomCode.length !== 5) return;
     setAction("joining"); setErrorMsg("");
-    const ws = connectWs();
-    ws.onmessage = (e) => {
-      try {
-        const msg = JSON.parse(e.data);
-        if (msg.type === "room:joined" || msg.type === "room:state") {
-          if (msg.payload.roomId) { setCreatedRoomId(msg.payload.roomId); setAction("idle"); }
-        } else if (msg.type === "room:error") {
-          setErrorMsg(msg.payload.message || "加入失败"); setAction("error");
-          setTimeout(() => setAction("idle"), 2000);
-        }
-      } catch {}
-    };
-    ws.onerror = () => { setErrorMsg("网络连接失败"); setAction("error"); setTimeout(() => setAction("idle"), 2000); };
-    sendWhenOpen(ws, JSON.stringify({ type: "room:join", payload: { roomId: roomCode.toUpperCase(), uid: myUid, nickName: "玩家" } }),
-      () => { setErrorMsg("连接服务器超时"); setAction("error"); setTimeout(() => setAction("idle"), 2000); });
+    send("room:join", { roomId: roomCode.toUpperCase(), uid: myUid, nickName: "玩家" });
   };
-
-  useEffect(() => {
-    if (createdRoomId) {
-      if (isPracticeMode) {
-        window.location.href = `/battle/${createdRoomId}?mode=practice&uid=${myUid}`;
-      } else {
-        window.location.href = `/room/${createdRoomId}?uid=${myUid}`;
-      }
-    }
-  }, [createdRoomId, isPracticeMode, myUid]);
 
   const isLoading = action === "creating" || action === "joining" || action === "practice";
 
@@ -135,12 +134,24 @@ export default function HomePage() {
       <header className="relative z-[10] flex items-center justify-between px-4 h-[60px]">
         <div className="flex items-center gap-3">
           <Image src="/assets/avatars/avatar-default.png" alt="头像" width={48} height={48} className="rounded-full border border-[var(--color-gold)]/50" {...imgProps} />
-          <span className="text-[var(--color-text-primary)] text-base max-w-[200px] truncate font-[family-name:var(--font-noto-serif)]">玩家</span>
+          {nickName ? (
+            <span className="text-[var(--color-text-primary)] text-base max-w-[160px] truncate font-[family-name:var(--font-noto-serif)]">{nickName}</span>
+          ) : (
+            <Link href="/auth" className="text-[14px] text-[var(--color-gold)] hover:text-[var(--color-gold)]/80 font-[family-name:var(--font-noto-serif)] underline underline-offset-4">登录/注册</Link>
+          )}
         </div>
-        <Link href="/backpack" className="h-11 px-2.5 flex items-center gap-1.5 rounded-lg border border-[var(--color-gold)]/25 bg-[rgba(197,160,89,0.06)] hover:bg-[rgba(197,160,89,0.12)] hover:border-[var(--color-gold)]/50 transition-all">
-          <Image src="/assets/ui/icons/icon-backpack.png" alt="背包" width={24} height={24} {...imgProps} />
-          <span className="text-[13px] text-[var(--color-gold)] font-[family-name:var(--font-noto-serif)]">背包</span>
-        </Link>
+        <div className="flex items-center gap-2">
+          {myUid && (
+            <button type="button" onClick={logout} className="text-[12px] text-[var(--color-text-muted)] hover:text-red-400 transition-colors font-[family-name:var(--font-noto-serif)]">退出</button>
+          )}
+          <Link href="/market" className="h-11 px-2.5 flex items-center gap-1.5 rounded-lg border border-[var(--color-gold)]/25 bg-[rgba(197,160,89,0.06)] hover:bg-[rgba(197,160,89,0.12)] hover:border-[var(--color-gold)]/50 transition-all">
+            <span className="text-[13px] text-[var(--color-gold)] font-[family-name:var(--font-noto-serif)]">虫市</span>
+          </Link>
+          <Link href="/backpack" className="h-11 px-2.5 flex items-center gap-1.5 rounded-lg border border-[var(--color-gold)]/25 bg-[rgba(197,160,89,0.06)] hover:bg-[rgba(197,160,89,0.12)] hover:border-[var(--color-gold)]/50 transition-all">
+            <Image src="/assets/ui/icons/icon-backpack.png" alt="背包" width={24} height={24} {...imgProps} />
+            <span className="text-[13px] text-[var(--color-gold)] font-[family-name:var(--font-noto-serif)]">背包</span>
+          </Link>
+        </div>
       </header>
 
       {/* Logo */}

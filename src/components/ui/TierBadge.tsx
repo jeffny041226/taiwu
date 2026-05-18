@@ -1,5 +1,5 @@
-import { TIER_LABELS, TIER_COLORS } from "@/config/game";
-import type { Tier } from "@/types/cricket";
+import { TIER_LABELS, TIER_COLORS } from "@taiwu/shared/config/game";
+import type { Tier } from "@taiwu/shared/types/cricket";
 
 interface TierBadgeProps {
   tier: Tier;

@@ -5,9 +5,13 @@ import { useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { TopBar } from "@/components/layout/TopBar";
 import { LoadingOverlay } from "@/components/game/LoadingOverlay";
-import { CRICKET_TEMPLATES, getCricketThumb } from "@/data/cricket-templates";
-import { CRICKET_SELECTION_TIMEOUT, TIER_COLORS, TRAIT_LABELS, TIER_LABELS } from "@/config/game";
+import { CRICKET_SELECTION_TIMEOUT, TIER_COLORS, TRAIT_LABELS, TIER_LABELS, BATTLE_MODE, BATTLE_MODE_LABELS } from "@taiwu/shared/config/game";
 import { useCountdown } from "@/hooks/useCountdown";
+import { useWebSocket } from "@/hooks/useWebSocket";
+import { ensureAuth } from "@/lib/auth";
+import { api } from "@/lib/api";
+import { CRICKET_TEMPLATES } from "@taiwu/shared/data/cricket-templates";
+import type { CricketTemplate, Tier } from "@taiwu/shared/types/cricket";
 
 interface RoomPlayer {
   uid: string;
@@ -28,8 +32,10 @@ interface RoomState {
 export default function RoomPage({ params }: { params: Promise<{ roomId: string }> }) {
   const { roomId } = use(params);
   const searchParams = useSearchParams();
-  const myUid = searchParams.get("uid") || `user-${Math.random().toString(36).slice(2, 8)}`;
   const fromMatch = searchParams.get("from") === "match";
+
+  const [myUid, setMyUid] = useState("");
+  const [token, setToken] = useState("");
   const [phase, setPhase] = useState("waiting");
   const [opponent, setOpponent] = useState<RoomPlayer | null>(null);
   const [opponentReady, setOpponentReady] = useState(false);
@@ -37,87 +43,128 @@ export default function RoomPage({ params }: { params: Promise<{ roomId: string 
   const [connecting, setConnecting] = useState(true);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [isReady, setIsReady] = useState(false);
-  const wsRef = useRef<WebSocket | null>(null);
+  const [crickets, setCrickets] = useState<{
+    id: number; templateId: number; template: CricketTemplate;
+    attack?: number; defense?: number; speed?: number;
+    maxHp?: number; maxStamina?: number; spiritBase?: number;
+  }[]>([]);
+
+  // Auth init — redirect to /auth if no JWT
+  useEffect(() => {
+    ensureAuth().then(async (auth) => {
+      if (!auth) {
+        window.location.href = "/auth";
+        return;
+      }
+      setMyUid(auth.uid);
+      setToken(auth.token);
+      // Fetch user's crickets from backpack
+      try {
+        const data = await api.getCrickets();
+        setCrickets(data.crickets.map(c => ({
+          id: c.id,
+          templateId: c.template_id,
+          template: c.template as CricketTemplate,
+          attack: (c as any).attack,
+          defense: (c as any).defense,
+          speed: (c as any).speed,
+          maxHp: (c as any).maxHp,
+          maxStamina: (c as any).maxStamina,
+          spiritBase: (c as any).spiritBase,
+        })));
+      } catch { /* use empty fallback */ }
+    });
+  }, []);
+
+  const wsReady = myUid && token;
 
   const autoReady = useCallback(() => {
-    if (!isReady && wsRef.current?.readyState === WebSocket.OPEN) {
-      const autoIds = CRICKET_TEMPLATES.slice(0, 3).map(t => t.id);
+    if (!isReady && wsReady) {
+      const autoIds = crickets.length > 0 ? crickets.slice(0, 3).map(c => c.id) : [1, 2, 3];
+      const selected = autoIds.map(id => crickets.find(c => c.id === id)).filter(Boolean);
+      const cricketStats = selected.map(c => ({
+        templateId: c!.templateId,
+        name: c!.template.name,
+        title: c!.template.title,
+        tier: c!.template.tier,
+        trait: c!.template.trait,
+        attack: c!.attack ?? c!.template.attack,
+        defense: c!.defense ?? c!.template.defense,
+        speed: c!.speed ?? c!.template.speed,
+        maxHp: c!.maxHp ?? c!.template.hpBase,
+        maxStamina: c!.maxStamina ?? c!.template.staminaBase,
+        spiritBase: c!.spiritBase ?? c!.template.spiritBase,
+      }));
       setSelectedIds(autoIds);
       setIsReady(true);
-      wsRef.current.send(JSON.stringify({
-        type: "battle:ready",
-        payload: { roomId: roomId.toUpperCase(), uid: myUid, cricketIds: autoIds },
-      }));
+      send("battle:ready", { roomId: roomId.toUpperCase(), uid: myUid, cricketIds: cricketStats.map(c => c.templateId), cricketStats });
     }
-  }, [isReady, myUid, roomId]);
+  }, [isReady, myUid, roomId, wsReady, crickets]);
+
+  const { send, on, off } = useWebSocket(wsReady ? roomId : null, token);
 
   const { count, isRunning, start, stop, reset } = useCountdown(CRICKET_SELECTION_TIMEOUT, autoReady);
 
+  // Register WS message handlers
   useEffect(() => {
-    const protocol = window.location.protocol === "https:" ? "wss" : "ws";
-    const envHost = process.env.NEXT_PUBLIC_WS_HOST;
-    const host = (envHost && envHost !== "localhost") ? envHost : window.location.hostname;
-    const port = process.env.NEXT_PUBLIC_WS_PORT || "3001";
-    const ws = new WebSocket(protocol + "://" + host + ":" + port + "/ws/battle");
-    wsRef.current = ws;
+    if (!wsReady) return;
+    setConnecting(false);
 
-    ws.onopen = () => {
-      setConnecting(false);
-      setErrorMsg("");
-      ws.send(JSON.stringify({
-        type: "room:join",
-        payload: { roomId: roomId.toUpperCase(), uid: myUid, nickName: "玩家" },
-      }));
+    const handleState = (payload: unknown) => {
+      const s: RoomState = payload as RoomState;
+      setPhase(s.phase);
+      const opp = s.leftPlayer?.uid !== myUid ? s.leftPlayer : s.rightPlayer;
+      if (opp && opp.uid !== myUid) {
+        setOpponent(opp);
+        setOpponentReady(opp.ready ?? false);
+      }
+      if (s.phase === "ready" && s.selectionRemaining && !isRunning) {
+        reset(s.selectionRemaining);
+        start();
+      }
+      if (s.phase === "battling") {
+        stop();
+        window.location.href = "/battle/" + roomId + "?uid=" + myUid + (fromMatch ? "&from=match" : "");
+      }
     };
 
-    ws.onmessage = (e) => {
-      try {
-        const msg = JSON.parse(e.data);
-        if (msg.type === "room:state") {
-          const s: RoomState = msg.payload;
-          setPhase(s.phase);
-
-          // 检测对手: uid 不是自己的就是对手
-          const opp = s.leftPlayer?.uid !== myUid ? s.leftPlayer : s.rightPlayer;
-          if (opp && opp.uid !== myUid) {
-            setOpponent(opp);
-            setOpponentReady(opp.ready ?? false);
-          }
-
-          // 重连时同步倒计时
-          if (s.phase === "ready" && s.selectionRemaining && !isRunning) {
-            reset(s.selectionRemaining);
-            start();
-          }
-
-          // 战斗开始 → 跳转战斗页
-          if (s.phase === "battling") {
-            stop();
-            window.location.href = "/battle/" + roomId + "?uid=" + myUid + (fromMatch ? "&from=match" : "");
-          }
-        } else if (msg.type === "room:joined") {
-          const s: RoomState = msg.payload;
-          setPhase(s.phase);
-          const opp = s.leftPlayer?.uid !== myUid ? s.leftPlayer : s.rightPlayer;
-          if (opp && opp.uid !== myUid) {
-            setOpponent(opp);
-            setOpponentReady(opp.ready ?? false);
-          }
-        } else if (msg.type === "room:selectionStart") {
-          const timeout = msg.payload.timeout as number || CRICKET_SELECTION_TIMEOUT;
-          reset(timeout);
-          start();
-        } else if (msg.type === "room:error") {
-          setErrorMsg(msg.payload.message || "错误");
-        }
-      } catch {}
+    const handleJoined = (payload: unknown) => {
+      const s: RoomState = payload as RoomState;
+      setPhase(s.phase);
+      const opp = s.leftPlayer?.uid !== myUid ? s.leftPlayer : s.rightPlayer;
+      if (opp && opp.uid !== myUid) {
+        setOpponent(opp);
+        setOpponentReady(opp.ready ?? false);
+      }
     };
 
-    ws.onclose = () => setConnecting(true);
-    ws.onerror = () => setErrorMsg("连接失败");
+    const handleSelectionStart = (payload: unknown) => {
+      const p = payload as { timeout?: number };
+      const timeout = p.timeout || CRICKET_SELECTION_TIMEOUT;
+      reset(timeout);
+      start();
+    };
 
-    return () => { ws.close(); };
-  }, [roomId, myUid]);
+    const handleError = (payload: unknown) => {
+      const p = payload as { message?: string };
+      setErrorMsg(p.message || "错误");
+    };
+
+    // Send room:join on connect
+    send("room:join", { roomId: roomId.toUpperCase(), uid: myUid, nickName: "玩家" });
+
+    on("room:state", handleState);
+    on("room:joined", handleJoined);
+    on("room:selectionStart", handleSelectionStart);
+    on("room:error", handleError);
+
+    return () => {
+      off("room:state", handleState);
+      off("room:joined", handleJoined);
+      off("room:selectionStart", handleSelectionStart);
+      off("room:error", handleError);
+    };
+  }, [wsReady, myUid, roomId, fromMatch]);
 
   const toggleSelect = (id: number) => {
     if (isReady) return;
@@ -131,10 +178,22 @@ export default function RoomPage({ params }: { params: Promise<{ roomId: string 
   const handleReady = () => {
     if (selectedIds.length !== 3 || isReady) return;
     setIsReady(true);
-    wsRef.current?.send(JSON.stringify({
-      type: "battle:ready",
-      payload: { roomId: roomId.toUpperCase(), uid: myUid, cricketIds: selectedIds },
+    // Send cricket instance stats for per-instance variation
+    const selected = selectedIds.map(id => crickets.find(c => c.id === id)).filter(Boolean);
+    const cricketStats = selected.map(c => ({
+      templateId: c!.templateId,
+      name: c!.template.name,
+      title: c!.template.title,
+      tier: c!.template.tier,
+      trait: c!.template.trait,
+      attack: c!.attack ?? c!.template.attack,
+      defense: c!.defense ?? c!.template.defense,
+      speed: c!.speed ?? c!.template.speed,
+      maxHp: c!.maxHp ?? c!.template.hpBase,
+      maxStamina: c!.maxStamina ?? c!.template.staminaBase,
+      spiritBase: c!.spiritBase ?? c!.template.spiritBase,
     }));
+    send("battle:ready", { roomId: roomId.toUpperCase(), uid: myUid, cricketIds: cricketStats.map(c => c.templateId), cricketStats });
   };
 
   const tierColorMap: Record<string, string> = {
@@ -148,11 +207,12 @@ export default function RoomPage({ params }: { params: Promise<{ roomId: string 
     <div className="relative w-full min-h-[100dvh] bg-[var(--color-bg-base)]">
       <TopBar title={phase === "ready" ? "选蛐蛐" : "房间"} backHref="/" />
 
-      {/* 房间号 */}
-      <div className="flex justify-center py-2">
+      {/* 房间号 + 对战模式 */}
+      <div className="flex justify-center items-center gap-3 py-2">
         <div className="w-[140px] h-9 rounded-[18px] bg-[rgba(20,14,10,0.8)] border border-[var(--color-gold)]/20 flex items-center justify-center">
           <span className="text-[22px] font-bold text-[var(--color-gold)] tracking-[6px] font-[family-name:var(--font-noto-serif)]">{roomId.toUpperCase()}</span>
         </div>
+        <span className="text-[13px] px-2 py-1 rounded border border-[var(--color-gold)]/15 bg-[rgba(197,160,89,0.06)] text-[var(--color-gold)] font-[family-name:var(--font-noto-serif)]">{BATTLE_MODE_LABELS[BATTLE_MODE]}</span>
       </div>
 
       {/* 等待阶段 */}
@@ -193,12 +253,12 @@ export default function RoomPage({ params }: { params: Promise<{ roomId: string 
             </span>
             <div className="flex-1 flex gap-2">
               {[0, 1, 2].map(slot => {
-                const tmpl = selectedIds[slot] ? CRICKET_TEMPLATES.find(t => t.id === selectedIds[slot]) : null;
+                const tmpl = selectedIds[slot] ? crickets.find(c => c.id === selectedIds[slot])?.template ?? null : null;
                 return (
                   <div key={slot} className={"w-[56px] h-[56px] rounded-lg flex flex-col items-center justify-center " + (tmpl ? "border border-[var(--color-gold)]/50 bg-[rgba(20,14,10,0.6)]" : "border border-white/5 bg-[rgba(20,14,10,0.3)]")}>
                     {tmpl ? (
                       <>
-                        <Image src={getCricketThumb(tmpl.id)} alt={tmpl.name} width={32} height={28} unoptimized className="object-contain" />
+                        <Image src={tmpl.imageKey || `/assets/crickets/cricket-${String(((tmpl.id - 1) % 6) + 1).padStart(3, "0")}-thumb.png`} alt={tmpl.name} width={32} height={28} unoptimized className="object-contain" />
                         <span className="text-[8px] truncate max-w-[50px]" style={{ color: tierColorMap[tmpl.tier] }}>{tmpl.name}</span>
                       </>
                     ) : (
@@ -213,23 +273,21 @@ export default function RoomPage({ params }: { params: Promise<{ roomId: string 
           {/* 蛐蛐列表 */}
           <div className="w-full max-w-[358px] overflow-y-auto flex-1" style={{ maxHeight: "420px" }}>
             <div className="grid grid-cols-2 gap-2">
-              {CRICKET_TEMPLATES.map(tmpl => {
-                const isSelected = selectedIds.includes(tmpl.id);
+              {(crickets.length === 0 ? CRICKET_TEMPLATES.map(t => ({ id: t.id, templateId: t.id, template: t, attack: t.attack, defense: t.defense, speed: t.speed, maxHp: t.hpBase, maxStamina: t.staminaBase, spiritBase: t.spiritBase })) : crickets).map(c => {
+                const tmpl = c.template;
+                const isSelected = selectedIds.includes(c.id);
                 return (
                   <button
-                    key={tmpl.id}
+                    key={c.id}
                     type="button"
-                    onClick={() => toggleSelect(tmpl.id)}
+                    onClick={() => toggleSelect(c.id)}
                     disabled={isReady}
                     className={"relative flex items-center gap-2 p-2 rounded-lg transition-all " + (isSelected ? "border-2 border-[var(--color-gold)] bg-[rgba(197,160,89,0.12)] shadow-[0_0_8px_rgba(197,160,89,0.2)]" : "border border-white/5 bg-[rgba(20,14,10,0.6)] hover:border-[var(--color-gold)]/30") + (isReady ? " opacity-50 pointer-events-none" : "")}
                   >
-                    {/* 选中标记 */}
                     {isSelected && (
                       <div className="absolute top-1 right-1 w-4 h-4 rounded-full bg-[var(--color-gold)] flex items-center justify-center text-[10px] text-[var(--color-bg-base)] font-bold">✓</div>
                     )}
-                    {/* 缩略图 */}
-                    <Image src={getCricketThumb(tmpl.id)} alt={tmpl.name} width={40} height={35} unoptimized className="object-contain flex-shrink-0" />
-                    {/* 信息 */}
+                    <Image src={tmpl.imageKey || `/assets/crickets/cricket-${String(((tmpl.id - 1) % 6) + 1).padStart(3, "0")}-thumb.png`} alt={tmpl.name} width={40} height={35} unoptimized className="object-contain flex-shrink-0" />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1">
                         <span className="text-[13px] font-bold truncate font-[family-name:var(--font-noto-serif)]" style={{ color: tierColorMap[tmpl.tier] }}>{tmpl.name}</span>
@@ -238,7 +296,7 @@ export default function RoomPage({ params }: { params: Promise<{ roomId: string 
                       <span className="text-[10px] text-[var(--color-text-secondary)] font-[family-name:var(--font-ma-shan)]">{tmpl.title}</span>
                       <div className="flex items-center gap-1 mt-0.5">
                         <span className="text-[8px] px-1 rounded bg-[rgba(197,160,89,0.06)] text-[var(--color-gold)]/80">{TRAIT_LABELS[tmpl.trait]}</span>
-                        <span className="text-[9px] text-[var(--color-text-muted)]">攻{tmpl.attack} 防{tmpl.defense} 速{tmpl.speed}</span>
+                        <span className="text-[9px] text-[var(--color-text-muted)]">攻{c.attack ?? tmpl.attack} 防{c.defense ?? tmpl.defense} 速{c.speed ?? tmpl.speed}</span>
                       </div>
                     </div>
                   </button>

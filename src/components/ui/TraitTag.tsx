@@ -1,5 +1,5 @@
-import { TRAIT_LABELS } from "@/config/game";
-import type { Trait } from "@/types/cricket";
+import { TRAIT_LABELS } from "@taiwu/shared/config/game";
+import type { Trait } from "@taiwu/shared/types/cricket";
 
 interface TraitTagProps {
   trait: Trait;
