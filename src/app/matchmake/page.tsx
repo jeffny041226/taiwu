@@ -47,6 +47,15 @@ function MatchmakeContent() {
     wsRef.current?.close();
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
+    // 连接超时（6s）
+    const timer = setTimeout(() => {
+      if (ws.readyState === WebSocket.CONNECTING) {
+        ws.close();
+        setErrorMsg("连接服务器超时");
+        setMatchState("error");
+      }
+    }, 6000);
+    ws.addEventListener("open", () => clearTimeout(timer), { once: true });
     return ws;
   }, []);
 

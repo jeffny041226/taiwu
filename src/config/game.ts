@@ -117,8 +117,13 @@ export const TRAIT_EFFECTS = {
   },
 } as const;
 
+/** 伤害倍率 */
+export const DAMAGE_MULTIPLIER = 2;
+
 /** 对战模式 */
 export type BattleMode = "best_of_3" | "tag_team";
 
 /** 全局对战模式配置 */
 export const BATTLE_MODE: BattleMode = "tag_team";
+
+

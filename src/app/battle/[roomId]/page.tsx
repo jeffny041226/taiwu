@@ -306,14 +306,14 @@ export default function BattlePage({ params }: { params: Promise<{ roomId: strin
           if (r.enemyStaminaDelta) addLog(enemyName + " 耐力 " + (r.enemyStaminaDelta > 0 ? "+" : "") + r.enemyStaminaDelta);
           if (r.mySpiritDelta) addLog(myName + " 斗性 " + (r.mySpiritDelta > 0 ? "+" : "") + r.mySpiritDelta);
           if (r.enemySpiritDelta) addLog(enemyName + " 斗性 " + (r.enemySpiritDelta > 0 ? "+" : "") + r.enemySpiritDelta);
-          setTimeout(() => setShowDamage(null), 900);
-        }, 400);
+          setTimeout(() => setShowDamage(null), 315);
+        }, 140);
 
         setTimeout(() => {
           setMyOffset(0); setEnemyOffset(0);
           const angle = (Math.random() < 0.5 ? 1 : -1) * (20 + Math.random() * 70);
           setAxisAngle(Math.round(angle));
-        }, 800);
+        }, 280);
 
         setRoundCount(c => c + 1);
 
@@ -325,9 +325,9 @@ export default function BattlePage({ params }: { params: Promise<{ roomId: strin
             setTimeout(() => {
               setShowRoundEnd(false);
               setWaitingForAction(true);
-            }, 800);
+            }, 280);
           }
-        }, 1200);
+        }, 420);
         return;
       }
 

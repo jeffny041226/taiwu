@@ -5,6 +5,7 @@ import {
   SPIRIT_FEAR_THRESHOLD,
   SPIRIT_FEAR_DAMAGE_BONUS,
   TRAIT_EFFECTS,
+  DAMAGE_MULTIPLIER,
 } from "@/config/game";
 
 export type Action = "heavy_strike" | "feint" | "block" | "chirp";
@@ -222,7 +223,7 @@ export function calcRoundResult(
 
   return {
     attackerResult: {
-      damage: Math.round(attackerDamage),
+      damage: Math.round(attackerDamage * DAMAGE_MULTIPLIER),
       staminaDelta: attackerStaminaDelta,
       spiritDelta: attackerSpiritDelta,
       isBlocked: isBlocking(defenderAction),
@@ -230,7 +231,7 @@ export function calcRoundResult(
       counterApplied: getCounterMultiplier(attackerAction, defenderAction),
     },
     defenderResult: {
-      damage: Math.round(defenderDamage),
+      damage: Math.round(defenderDamage * DAMAGE_MULTIPLIER),
       staminaDelta: defenderStaminaDelta,
       spiritDelta: defenderSpiritDelta,
       isBlocked: isBlocking(attackerAction),

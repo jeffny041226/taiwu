@@ -6,7 +6,7 @@ import Image from "next/image";
 import { TopBar } from "@/components/layout/TopBar";
 import { LoadingOverlay } from "@/components/game/LoadingOverlay";
 import { CRICKET_TEMPLATES, getCricketThumb } from "@/data/cricket-templates";
-import { CRICKET_SELECTION_TIMEOUT, TIER_COLORS, TRAIT_LABELS, TIER_LABELS } from "@/config/game";
+import { CRICKET_SELECTION_TIMEOUT, TIER_COLORS, TRAIT_LABELS, TIER_LABELS, MIN_CRICKETS_TO_BATTLE } from "@/config/game";
 import { useCountdown } from "@/hooks/useCountdown";
 
 interface RoomPlayer {
@@ -41,7 +41,7 @@ export default function RoomPage({ params }: { params: Promise<{ roomId: string 
 
   const autoReady = useCallback(() => {
     if (!isReady && wsRef.current?.readyState === WebSocket.OPEN) {
-      const autoIds = CRICKET_TEMPLATES.slice(0, 3).map(t => t.id);
+      const autoIds = CRICKET_TEMPLATES.slice(0, MIN_CRICKETS_TO_BATTLE).map(t => t.id);
       setSelectedIds(autoIds);
       setIsReady(true);
       wsRef.current.send(JSON.stringify({
@@ -123,13 +123,13 @@ export default function RoomPage({ params }: { params: Promise<{ roomId: string 
     if (isReady) return;
     if (selectedIds.includes(id)) {
       setSelectedIds(selectedIds.filter(i => i !== id));
-    } else if (selectedIds.length < 3) {
+    } else if (selectedIds.length < MIN_CRICKETS_TO_BATTLE) {
       setSelectedIds([...selectedIds, id]);
     }
   };
 
   const handleReady = () => {
-    if (selectedIds.length !== 3 || isReady) return;
+    if (selectedIds.length !== MIN_CRICKETS_TO_BATTLE || isReady) return;
     setIsReady(true);
     wsRef.current?.send(JSON.stringify({
       type: "battle:ready",
@@ -189,10 +189,10 @@ export default function RoomPage({ params }: { params: Promise<{ roomId: string 
           {/* 已选展示 */}
           <div className="flex items-center gap-2 w-full max-w-[358px] mb-2">
             <span className="text-[13px] text-[var(--color-gold)] font-[family-name:var(--font-noto-serif)]">
-              已选 {selectedIds.length}/3 只蛐蛐
+              已选 {selectedIds.length}/{MIN_CRICKETS_TO_BATTLE} 只蛐蛐
             </span>
             <div className="flex-1 flex gap-2">
-              {[0, 1, 2].map(slot => {
+              {Array.from({ length: MIN_CRICKETS_TO_BATTLE }, (_, i) => i).map(slot => {
                 const tmpl = selectedIds[slot] ? CRICKET_TEMPLATES.find(t => t.id === selectedIds[slot]) : null;
                 return (
                   <div key={slot} className={"w-[56px] h-[56px] rounded-lg flex flex-col items-center justify-center " + (tmpl ? "border border-[var(--color-gold)]/50 bg-[rgba(20,14,10,0.6)]" : "border border-white/5 bg-[rgba(20,14,10,0.3)]")}>
@@ -258,8 +258,8 @@ export default function RoomPage({ params }: { params: Promise<{ roomId: string 
               <button
                 type="button"
                 onClick={handleReady}
-                disabled={selectedIds.length !== 3}
-                className={"w-full h-[50px] rounded-[10px] border transition-all font-[family-name:var(--font-noto-serif)] text-[18px] font-bold " + (selectedIds.length === 3 ? "border-[var(--color-gold)] bg-gradient-to-b from-[rgba(30,22,16,0.85)] to-[rgba(20,14,10,0.9)] text-[var(--color-gold)] hover:border-[var(--color-gold)]/70 active:scale-[0.98]" : "border-white/5 bg-[rgba(20,14,10,0.4)] text-[var(--color-text-muted)] opacity-50 pointer-events-none")}
+                disabled={selectedIds.length !== MIN_CRICKETS_TO_BATTLE}
+                className={"w-full h-[50px] rounded-[10px] border transition-all font-[family-name:var(--font-noto-serif)] text-[18px] font-bold " + (selectedIds.length === MIN_CRICKETS_TO_BATTLE ? "border-[var(--color-gold)] bg-gradient-to-b from-[rgba(30,22,16,0.85)] to-[rgba(20,14,10,0.9)] text-[var(--color-gold)] hover:border-[var(--color-gold)]/70 active:scale-[0.98]" : "border-white/5 bg-[rgba(20,14,10,0.4)] text-[var(--color-text-muted)] opacity-50 pointer-events-none")}
               >
                 准备完成
               </button>
