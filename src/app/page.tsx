@@ -155,11 +155,21 @@ export default function HomePage() {
       {/* Top Bar */}
       <header className="relative z-[10] flex items-center justify-between px-4 h-[60px]">
         <div className="flex items-center gap-3">
-          <Image src="/assets/avatars/avatar-default.png" alt="头像" width={48} height={48} className="rounded-full border border-[var(--color-gold)]/50" {...imgProps} />
           {nickName ? (
-            <span className="text-[var(--color-text-primary)] text-base max-w-[160px] truncate font-[family-name:var(--font-noto-serif)]">{nickName}</span>
+            /* 头像 hover 弹出退出按钮 */
+            <div className="group relative">
+              <Image src="/assets/avatars/avatar-default.png" alt="头像" width={48} height={48} className="rounded-full border border-[var(--color-gold)]/50 cursor-pointer" {...imgProps} />
+              <div className="absolute left-1/2 -translate-x-1/2 top-full mt-2 hidden group-hover:block min-w-[80px]">
+                <div className="bg-[rgba(20,14,10,0.95)] border border-[var(--color-gold)]/30 rounded-lg py-1 shadow-lg">
+                  <button type="button" onClick={logout} className="w-full px-3 py-1.5 text-[13px] text-red-400 hover:bg-[rgba(255,255,255,0.05)] text-center font-[family-name:var(--font-noto-serif)] whitespace-nowrap">退出登录</button>
+                </div>
+              </div>
+            </div>
           ) : (
             <Link href="/auth" className="text-[14px] text-[var(--color-gold)] hover:text-[var(--color-gold)]/80 font-[family-name:var(--font-noto-serif)] underline underline-offset-4">登录/注册</Link>
+          )}
+          {nickName && (
+            <span className="text-[var(--color-text-primary)] text-base max-w-[160px] truncate font-[family-name:var(--font-noto-serif)]">{nickName}</span>
           )}
         </div>
         <div className="flex items-center gap-2">
@@ -171,9 +181,6 @@ export default function HomePage() {
             <Image src="/assets/ui/icons/icon-backpack.png" alt="背包" width={24} height={24} {...imgProps} />
             <span className="text-[13px] text-[var(--color-gold)] font-[family-name:var(--font-noto-serif)]">背包</span>
           </Link>
-          {myUid && (
-            <button type="button" onClick={logout} className="ml-2 text-[12px] text-[var(--color-text-muted)] hover:text-red-400 transition-colors font-[family-name:var(--font-noto-serif)]">退出</button>
-          )}
         </div>
       </header>
 
