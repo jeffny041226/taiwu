@@ -137,11 +137,11 @@ function InfoBar({ label, name, title, tier, hp, maxHp, stamina, maxStamina, spi
         </div>
         <div className="flex items-center gap-2 mt-0.5">
           <div className="flex items-center gap-1.5">
-            <span className="text-[8px] text-[var(--color-text-muted)] w-3.5 font-[family-name:var(--font-noto-serif)]">HP</span>
-            <div className="w-[100px] h-2 rounded-sm" style={{ backgroundColor: "#5a2218" }}>
-              <div className="h-full rounded-sm transition-all duration-500" style={{ width: hpPct + "%", backgroundColor: hpColor, animation: hpAnim }} />
+            <span className="text-[11px] font-bold text-[var(--color-text-muted)] w-4 font-[family-name:var(--font-noto-serif)]">HP</span>
+            <div className="w-[160px] h-4 rounded-md" style={{ backgroundColor: "#5a2218" }}>
+              <div className="h-full rounded-md transition-all duration-500" style={{ width: hpPct + "%", backgroundColor: hpColor, animation: hpAnim }} />
             </div>
-            <span className="text-[8px] text-[var(--color-text-primary)] font-[family-name:var(--font-noto-serif)]">{hp}/{maxHp}</span>
+            <span className="text-[11px] font-bold text-[var(--color-text-primary)] font-[family-name:var(--font-noto-serif)]">{hp}/{maxHp}</span>
           </div>
           <div className="flex items-center gap-1">
             <span className="text-[8px] text-[var(--color-text-muted)] w-2.5 font-[family-name:var(--font-noto-serif)]">ST</span>
@@ -336,7 +336,7 @@ export default function BattlePage({ params }: { params: Promise<{ roomId: strin
             setWaitingForAction(true);
           }, 400);
         }
-      }, 600);
+      }, 1200);
     };
 
     const handleRoundWin = (payload: unknown) => {
@@ -678,11 +678,12 @@ export default function BattlePage({ params }: { params: Promise<{ roomId: strin
             <div className="absolute left-[80px] top-1/2 transition-transform duration-[0.3s] ease-in-out" style={{ transform: "translateY(-50%) translateX(" + enemyOffset + "px)" }}>
               <div className="flex flex-col items-center">
                 <div className="relative flex flex-col items-center">
-                  <div className="flex items-center gap-1 mb-0.5">
-                    <div className="w-[44px] h-[5px] rounded-sm overflow-hidden" style={{ backgroundColor: "rgba(197,160,89,0.12)" }}>
-                      <div className="h-full rounded-sm transition-all duration-500" style={{ width: spiritPctEnemy + "%", backgroundColor: spiritColorEnemy }} />
-                    </div>
-                    <span className="text-[8px] text-[var(--color-gold-dim)] leading-none font-[family-name:var(--font-noto-serif)]">{currentEnemySpirit}</span>
+                  <div className="flex items-center justify-center mb-0.5 min-h-[13px]">
+                    {lastEnemyAction && (
+                      <span className={"px-1.5 py-[1px] rounded text-[10px] font-bold font-[family-name:var(--font-noto-serif)] whitespace-nowrap " + (lastEnemyAction === "heavy_strike" ? "text-red-400 bg-red-400/15" : lastEnemyAction === "feint" ? "text-green-400 bg-green-400/15" : lastEnemyAction === "block" ? "text-yellow-400 bg-yellow-400/15" : "text-white/80 bg-white/10")}>
+                        {ACTION_LABEL[lastEnemyAction]}
+                      </span>
+                    )}
                   </div>
                   {showDamage?.target === "enemy" && <div className="absolute -top-5 text-[22px] font-bold font-[family-name:var(--font-noto-serif)] text-[#ffd700] animate-[float-up-fade_0.9s_ease-out_forwards]">{showDamage.dmg}</div>}
                 </div>
@@ -696,11 +697,12 @@ export default function BattlePage({ params }: { params: Promise<{ roomId: strin
             <div className="absolute right-[80px] top-1/2 transition-transform duration-[0.3s] ease-in-out" style={{ transform: "translateY(-50%) translateX(" + myOffset + "px)" }}>
               <div className="flex flex-col items-center">
                 <div className="relative flex flex-col items-center">
-                  <div className="flex items-center gap-1 mb-0.5">
-                    <div className="w-[44px] h-[5px] rounded-sm overflow-hidden" style={{ backgroundColor: "rgba(197,160,89,0.12)" }}>
-                      <div className="h-full rounded-sm transition-all duration-500" style={{ width: spiritPctMy + "%", backgroundColor: spiritColorMy }} />
-                    </div>
-                    <span className="text-[8px] text-[var(--color-gold-dim)] leading-none font-[family-name:var(--font-noto-serif)]">{currentMySpirit}</span>
+                  <div className="flex items-center justify-center mb-0.5 min-h-[13px]">
+                    {lastMyAction && (
+                      <span className={"px-1.5 py-[1px] rounded text-[10px] font-bold font-[family-name:var(--font-noto-serif)] whitespace-nowrap " + (lastMyAction === "heavy_strike" ? "text-red-400 bg-red-400/15" : lastMyAction === "feint" ? "text-green-400 bg-green-400/15" : lastMyAction === "block" ? "text-yellow-400 bg-yellow-400/15" : "text-white/80 bg-white/10")}>
+                        {ACTION_LABEL[lastMyAction]}
+                      </span>
+                    )}
                   </div>
                   {showDamage?.target === "me" && <div className="absolute -top-5 text-[22px] font-bold font-[family-name:var(--font-noto-serif)] text-[#e04040] animate-[float-up-fade_0.9s_ease-out_forwards]">{showDamage.dmg}</div>}
                 </div>
