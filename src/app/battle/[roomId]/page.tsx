@@ -396,8 +396,9 @@ export default function BattlePage({ params }: { params: Promise<{ roomId: strin
     send("battle:action", { roomId: roomId.toUpperCase(), uid: myUid, action });
   };
 
-  // 自动发送随机动作
+  // 自动发送随机动作（PVE 由服务端自动出招，客户端不发送）
   useEffect(() => {
+    if (isPractice) return;
     if (pvpPhase === "battling" && waitingForAction) {
       const actions: Action[] = ["heavy_strike", "feint", "block", "chirp"];
       const timer = setTimeout(() => sendAction(actions[Math.floor(Math.random() * 4)]), 750);
@@ -405,8 +406,9 @@ export default function BattlePage({ params }: { params: Promise<{ roomId: strin
     }
   }, [isPractice, pvpPhase, waitingForAction, roundCount]);
 
-  // 局间自动继续
+  // 局间自动继续（PVE 由服务端自动推进）
   useEffect(() => {
+    if (isPractice) return;
     if (pvpPhase === "roundEnd") {
       const timer = setTimeout(() => sendNextRound(), Math.round(AUTO_READY_DELAY / 2));
       return () => clearTimeout(timer);

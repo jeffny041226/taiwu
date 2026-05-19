@@ -101,41 +101,63 @@ function handleRoundSettlement(roomId: string): void {
   }
 
   if (roundWin) {
-    roundEnd(room);
-    const roundWinPerspective = (isLeft: boolean) => ({
-      winner: roundWin.winner === "draw" ? "draw" : (roundWin.winner === "left" ? (isLeft ? "me" : "enemy") : (isLeft ? "enemy" : "me")),
-      myScore: isLeft ? roundWin.leftScore : roundWin.rightScore,
-      enemyScore: isLeft ? roundWin.rightScore : roundWin.leftScore,
-      defeatedCricket: roundWin.defeatedCricket ? {
-        side: roundWin.defeatedCricket.side === "left" ? (isLeft ? "me" : "enemy") : (isLeft ? "enemy" : "me"),
-        name: roundWin.defeatedCricket.name,
-        title: roundWin.defeatedCricket.title,
-      } : null,
-    });
-    if (room.leftPlayer?.ws?.readyState === WebSocket.OPEN) {
-      send(room.leftPlayer.ws, "battle:roundWin", roundWinPerspective(true));
-    }
-    if (room.rightPlayer?.ws && !room.isPractice && room.rightPlayer.ws.readyState === WebSocket.OPEN) {
-      send(room.rightPlayer.ws, "battle:roundWin", roundWinPerspective(false));
-    }
-    setTimeout(() => {
-      const r = getRoom(roomId);
-      if (!r || r.phase !== "roundEnd") return;
-      if (r.isPractice && r.rightPlayer) {
-        r.rightPlayer.readyRound = true;
+    if (room.isPractice) {
+      roundEnd(room);
+      const roundWinPerspective = (isLeft: boolean) => ({
+        winner: roundWin.winner === "draw" ? "draw" : (roundWin.winner === "left" ? (isLeft ? "me" : "enemy") : (isLeft ? "enemy" : "me")),
+        myScore: isLeft ? roundWin.leftScore : roundWin.rightScore,
+        enemyScore: isLeft ? roundWin.rightScore : roundWin.leftScore,
+        defeatedCricket: roundWin.defeatedCricket ? {
+          side: roundWin.defeatedCricket.side === "left" ? (isLeft ? "me" : "enemy") : (isLeft ? "enemy" : "me"),
+          name: roundWin.defeatedCricket.name,
+          title: roundWin.defeatedCricket.title,
+        } : null,
+      });
+      if (room.leftPlayer?.ws?.readyState === WebSocket.OPEN) {
+        send(room.leftPlayer.ws, "battle:roundWin", roundWinPerspective(true));
       }
-      if (r.leftPlayer?.readyRound && r.rightPlayer?.readyRound) {
-        if (nextRound(r, r.lastDefeatedSide)) {
-          broadcast(roomId, "room:state", buildRoomState(r));
-          broadcastCricketChange(r);
-          startActionTimer(roomId);
+      practiceStep(roomId, defeatedSide);
+    } else {
+      roundEnd(room);
+      const roundWinPerspective = (isLeft: boolean) => ({
+        winner: roundWin.winner === "draw" ? "draw" : (roundWin.winner === "left" ? (isLeft ? "me" : "enemy") : (isLeft ? "enemy" : "me")),
+        myScore: isLeft ? roundWin.leftScore : roundWin.rightScore,
+        enemyScore: isLeft ? roundWin.rightScore : roundWin.leftScore,
+        defeatedCricket: roundWin.defeatedCricket ? {
+          side: roundWin.defeatedCricket.side === "left" ? (isLeft ? "me" : "enemy") : (isLeft ? "enemy" : "me"),
+          name: roundWin.defeatedCricket.name,
+          title: roundWin.defeatedCricket.title,
+        } : null,
+      });
+      if (room.leftPlayer?.ws?.readyState === WebSocket.OPEN) {
+        send(room.leftPlayer.ws, "battle:roundWin", roundWinPerspective(true));
+      }
+      if (room.rightPlayer?.ws && !room.isPractice && room.rightPlayer.ws.readyState === WebSocket.OPEN) {
+        send(room.rightPlayer.ws, "battle:roundWin", roundWinPerspective(false));
+      }
+      setTimeout(() => {
+        const r = getRoom(roomId);
+        if (!r || r.phase !== "roundEnd") return;
+        if (r.isPractice && r.rightPlayer) {
+          r.rightPlayer.readyRound = true;
         }
-      }
-    }, 2500);
+        if (r.leftPlayer?.readyRound && r.rightPlayer?.readyRound) {
+          if (nextRound(r, r.lastDefeatedSide)) {
+            broadcast(roomId, "room:state", buildRoomState(r));
+            broadcastCricketChange(r);
+            startActionTimer(roomId);
+          }
+        }
+      }, 2500);
+    }
   } else {
     room.leftAction = null;
     room.rightAction = null;
-    startActionTimer(roomId);
+    if (room.isPractice) {
+      room.actionTimer = setTimeout(() => startPracticeLoop(roomId), 1500);
+    } else {
+      startActionTimer(roomId);
+    }
   }
 }
 
@@ -163,6 +185,39 @@ function startActionTimer(roomId: string): void {
     }
     handleRoundSettlement(roomId);
   }, ACTION_TIMEOUT);
+}
+
+/** 练习模式自动对战循环 */
+function startPracticeLoop(roomId: string): void {
+  const room = getRoom(roomId);
+  if (!room || !room.isPractice) return;
+  clearActionTimer(roomId);
+  const actions: Action[] = ["heavy_strike", "feint", "block", "chirp"];
+  room.leftAction = actions[Math.floor(Math.random() * 4)];
+  room.rightAction = actions[Math.floor(Math.random() * 4)];
+  handleRoundSettlement(roomId);
+}
+
+/** 练习模式：处理完一局后自动进入下一轮 */
+function practiceStep(roomId: string, defeatedSide: "left" | "right" | "both" | null): void {
+  const room = getRoom(roomId);
+  if (!room || !room.isPractice || room.phase !== "roundEnd") return;
+  if (nextRound(room, defeatedSide)) {
+    broadcast(roomId, "room:state", buildRoomState(room));
+    broadcastCricketChange(room);
+    // 短暂延迟后开始下一轮
+    room.actionTimer = setTimeout(() => startPracticeLoop(roomId), 1500);
+  } else {
+    finishRoom(room);
+    const gameOverPerspective = (isLeft: boolean) => ({
+      winner: room.leftScore >= 2 ? (isLeft ? "me" : "enemy") : (isLeft ? "enemy" : "me"),
+      myScore: isLeft ? room.leftScore : room.rightScore,
+      enemyScore: isLeft ? room.rightScore : room.leftScore,
+    });
+    if (room.leftPlayer?.ws?.readyState === WebSocket.OPEN) send(room.leftPlayer.ws, "battle:gameOver", gameOverPerspective(true));
+    if (room.rightPlayer?.ws && !room.isPractice && room.rightPlayer.ws.readyState === WebSocket.OPEN) send(room.rightPlayer.ws, "battle:gameOver", gameOverPerspective(false));
+    scheduleCleanup(roomId);
+  }
 }
 
 function startSelectionTimer(roomId: string): void {
@@ -448,7 +503,11 @@ export function handleMessage(ws: WebSocket, rawData: Buffer): void {
         if (startBattle(room)) {
           broadcastBattleData(room);
           broadcast(roomId, "room:state", buildRoomState(room));
-          startActionTimer(roomId);
+          if (room.isPractice) {
+            startPracticeLoop(roomId);
+          } else {
+            startActionTimer(roomId);
+          }
           return;
         }
       }
@@ -463,7 +522,10 @@ export function handleMessage(ws: WebSocket, rawData: Buffer): void {
 
       const room = getRoom(roomId);
       if (!room) { send(ws, "room:error", { message: "房间不存在" }); return; }
-      // 不在战斗阶段时静默忽略（避免落后消息打断流程）
+
+      // 练习模式由服务端自动出招，忽略客户端动作
+      if (room.isPractice) return;
+
       if (room.phase !== "battling") return;
 
       const validActions: Action[] = ["heavy_strike", "feint", "block", "chirp"];
@@ -473,9 +535,6 @@ export function handleMessage(ws: WebSocket, rawData: Buffer): void {
       const isLeft = room.leftPlayer?.uid === uid;
       const isRight = room.rightPlayer?.uid === uid;
       if (!isLeft && !isRight) { send(ws, "room:error", { message: "你不在这个房间中" }); return; }
-
-      if (isLeft && room.leftPlayer) room.leftPlayer.ws = ws;
-      if (isRight && room.rightPlayer) room.rightPlayer.ws = ws;
 
       if (isLeft) setAction(room, "left", action);
       else setAction(room, "right", action);
@@ -494,6 +553,10 @@ export function handleMessage(ws: WebSocket, rawData: Buffer): void {
       const uid = (ws as any).uid || payload.uid as string;
       const room = getRoom(roomId);
       if (!room) { send(ws, "room:error", { message: "房间不存在" }); return; }
+
+      // 练习模式由服务端自动推进，忽略客户端请求
+      if (room.isPractice) return;
+
       if (room.phase !== "roundEnd") { send(ws, "room:error", { message: "当前不在局间阶段" }); return; }
 
       const isLeft = room.leftPlayer?.uid === uid;
