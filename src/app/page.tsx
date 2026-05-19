@@ -21,6 +21,7 @@ export default function HomePage() {
   const [roomCode, setRoomCode] = useState("");
   const [action, setAction] = useState<Action>("idle");
   const [errorMsg, setErrorMsg] = useState("");
+  const [showLogout, setShowLogout] = useState(false);
   const [createdRoomId, setCreatedRoomId] = useState<string | null>(null);
   const [isPracticeMode, setIsPracticeMode] = useState(false);
 
@@ -157,13 +158,15 @@ export default function HomePage() {
         <div className="flex items-center gap-3">
           {nickName ? (
             /* 头像 hover 弹出退出按钮 */
-            <div className="group relative">
+            <div className="relative" onMouseEnter={() => setShowLogout(true)} onMouseLeave={() => setShowLogout(false)}>
               <Image src="/assets/avatars/avatar-default.png" alt="头像" width={48} height={48} className="rounded-full border border-[var(--color-gold)]/50 cursor-pointer" {...imgProps} />
-              <div className="absolute left-1/2 -translate-x-1/2 top-full mt-2 hidden group-hover:block min-w-[80px]">
-                <div className="bg-[rgba(20,14,10,0.95)] border border-[var(--color-gold)]/30 rounded-lg py-1 shadow-lg">
-                  <button type="button" onClick={logout} className="w-full px-3 py-1.5 text-[13px] text-red-400 hover:bg-[rgba(255,255,255,0.05)] text-center font-[family-name:var(--font-noto-serif)] whitespace-nowrap">退出登录</button>
+              {showLogout && (
+                <div className="absolute left-1/2 -translate-x-1/2 top-full mt-2 min-w-[80px] z-50">
+                  <div className="bg-[rgba(20,14,10,0.95)] border border-[var(--color-gold)]/30 rounded-lg py-1 shadow-lg">
+                    <button type="button" onClick={logout} className="w-full px-3 py-1.5 text-[13px] text-red-400 hover:bg-[rgba(255,255,255,0.05)] text-center font-[family-name:var(--font-noto-serif)] whitespace-nowrap">退出登录</button>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           ) : (
             <Link href="/auth" className="text-[14px] text-[var(--color-gold)] hover:text-[var(--color-gold)]/80 font-[family-name:var(--font-noto-serif)] underline underline-offset-4">登录/注册</Link>
@@ -173,11 +176,11 @@ export default function HomePage() {
           )}
         </div>
         <div className="flex items-center gap-2">
-          <Link href="/market" className="h-11 px-2.5 flex items-center gap-1.5 rounded-lg border border-[var(--color-gold)]/25 bg-[rgba(197,160,89,0.06)] hover:bg-[rgba(197,160,89,0.12)] hover:border-[var(--color-gold)]/50 transition-all">
+          <Link href={myUid ? "/market" : "/auth"} className="h-11 px-2.5 flex items-center gap-1.5 rounded-lg border border-[var(--color-gold)]/25 bg-[rgba(197,160,89,0.06)] hover:bg-[rgba(197,160,89,0.12)] hover:border-[var(--color-gold)]/50 transition-all">
             <Image src="/assets/ui/icons/icon-market.png" alt="虫市" width={24} height={24} {...imgProps} />
             <span className="text-[13px] text-[var(--color-gold)] font-[family-name:var(--font-noto-serif)]">虫市</span>
           </Link>
-          <Link href="/backpack" className="h-11 px-2.5 flex items-center gap-1.5 rounded-lg border border-[var(--color-gold)]/25 bg-[rgba(197,160,89,0.06)] hover:bg-[rgba(197,160,89,0.12)] hover:border-[var(--color-gold)]/50 transition-all">
+          <Link href={myUid ? "/backpack" : "/auth"} className="h-11 px-2.5 flex items-center gap-1.5 rounded-lg border border-[var(--color-gold)]/25 bg-[rgba(197,160,89,0.06)] hover:bg-[rgba(197,160,89,0.12)] hover:border-[var(--color-gold)]/50 transition-all">
             <Image src="/assets/ui/icons/icon-backpack.png" alt="背包" width={24} height={24} {...imgProps} />
             <span className="text-[13px] text-[var(--color-gold)] font-[family-name:var(--font-noto-serif)]">背包</span>
           </Link>
@@ -191,9 +194,9 @@ export default function HomePage() {
 
       {/* Buttons */}
       <section className="absolute bottom-0 left-0 right-0 z-[10] flex flex-col items-center gap-3 px-4 pb-8">
-        <Link href="/matchmake" className={btnClass + " flex items-center justify-center border-[var(--color-gold)]/60 bg-gradient-to-b from-[rgba(197,160,89,0.15)] to-[rgba(20,14,10,0.9)]"}>匹配对战</Link>
+        <Link href={myUid ? "/matchmake" : "/auth"} className={btnClass + " flex items-center justify-center border-[var(--color-gold)]/60 bg-gradient-to-b from-[rgba(197,160,89,0.15)] to-[rgba(20,14,10,0.9)]"}>匹配对战</Link>
 
-        <button type="button" onClick={handleCreateRoom} disabled={isLoading} className={btnClass}>开房对战</button>
+        <button type="button" onClick={myUid ? handleCreateRoom : () => window.location.href = "/auth"} disabled={isLoading} className={btnClass}>开房对战</button>
 
         {showJoinInput ? (
           <div className="flex gap-2 w-[342px]">
@@ -203,10 +206,10 @@ export default function HomePage() {
               className={`h-[50px] px-6 rounded-[10px] border border-[var(--color-gold)]/30 bg-gradient-to-b from-[rgba(30,22,16,0.85)] to-[rgba(20,14,10,0.9)] text-[18px] font-bold whitespace-nowrap flex items-center justify-center font-[family-name:var(--font-noto-serif)] ${roomCode.length === 5 ? "text-[#4a90d9] hover:border-[#4a90d9]/70" : "text-[var(--color-text-muted)] opacity-40 pointer-events-none"}`}>进入</button>
           </div>
         ) : (
-          <button type="button" onClick={() => setShowJoinInput(true)} className={btnClass}>加入房间</button>
+          <button type="button" onClick={myUid ? () => setShowJoinInput(true) : () => window.location.href = "/auth"} className={btnClass}>加入房间</button>
         )}
 
-        <button type="button" onClick={handlePractice} disabled={isLoading} className={btnClass}>训练</button>
+        <button type="button" onClick={myUid ? handlePractice : () => window.location.href = "/auth"} disabled={isLoading} className={btnClass}>训练</button>
       </section>
 
       <LoadingOverlay visible={isLoading} message={action === "creating" ? "创建房间中..." : action === "joining" ? "加入房间中..." : "启动训练中..."} />

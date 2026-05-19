@@ -70,8 +70,11 @@ export default function BackpackPage() {
   };
 
   return (
-    <div className="relative w-full min-h-[100dvh] bg-[var(--color-bg-base)]">
-      <TopBar title="背包" backHref="/" />
+    <div className="w-full min-h-[100dvh]">
+      <div className="fixed inset-0 -z-10" style={{ backgroundImage: "url(/assets/backgrounds/bg-backpack.webp)", backgroundSize: "cover", backgroundPosition: "center", backgroundAttachment: "fixed" }} />
+      <div className="fixed inset-0 -z-10" style={{ backgroundColor: "rgba(0,0,0,0.4)" }} />
+      <div className="relative z-10">
+        <TopBar title="背包" backHref="/" />
 
       {errorMsg && (
         <div className="px-4 py-2 text-center text-[13px] text-red-400 font-[family-name:var(--font-noto-serif)]">{errorMsg}</div>
@@ -127,6 +130,7 @@ export default function BackpackPage() {
           </div>
         )}
       </div>
+    </div>
     </div>
   );
 }

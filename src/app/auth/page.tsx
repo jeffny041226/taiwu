@@ -4,14 +4,14 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { TopBar } from "@/components/layout/TopBar";
-import { login, register, guestRegister } from "@/lib/auth";
+import { login, register } from "@/lib/auth";
 
 type Tab = "login" | "register";
 type Status = "idle" | "loading" | "error";
 
 export default function AuthPage() {
   const router = useRouter();
-  const [tab, setTab] = useState<Tab>("register");
+  const [tab, setTab] = useState<Tab>("login");
   const [status, setStatus] = useState<Status>("idle");
   const [errorMsg, setErrorMsg] = useState("");
 
@@ -56,18 +56,6 @@ export default function AuthPage() {
       router.push("/");
     } catch (e: any) {
       setErrorMsg(e.message || "注册失败");
-      setStatus("error");
-    }
-  };
-
-  const handleGuest = async () => {
-    setStatus("loading");
-    setErrorMsg("");
-    try {
-      await guestRegister();
-      router.push("/");
-    } catch (e: any) {
-      setErrorMsg(e.message || "游客注册失败");
       setStatus("error");
     }
   };
@@ -218,17 +206,7 @@ export default function AuthPage() {
             </>
           )}
 
-          {/* Guest entry */}
-          <div className="flex justify-center pt-4">
-            <button
-              type="button"
-              onClick={handleGuest}
-              disabled={isLoading}
-              className="text-[14px] text-[var(--color-text-muted)] hover:text-[var(--color-gold)] transition-colors font-[family-name:var(--font-noto-serif)] underline underline-offset-4 disabled:opacity-50"
-            >
-              游客体验（身份不保存）
-            </button>
-          </div>
+          {/* 游客入口已移除 */}
         </div>
       </div>
     </div>

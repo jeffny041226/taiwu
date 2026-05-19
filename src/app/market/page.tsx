@@ -54,10 +54,10 @@ export default function MarketPage() {
   };
 
   return (
-    <div className="relative w-full h-[100dvh] overflow-hidden bg-[var(--color-bg-base)]">
+    <div className="relative w-full h-[100dvh] overflow-hidden bg-cover bg-center" style={{ backgroundImage: "linear-gradient(rgba(0,0,0,0.4), rgba(0,0,0,0.4)), url(/assets/backgrounds/bg-market.webp)" }}>
       <TopBar title="虫市" backHref="/" />
 
-      <div className="relative z-[10] flex h-[calc(100dvh-55px)]">
+      <div className="relative z-10 flex h-[calc(100dvh-55px)]">
         {/* Left: Gacha Display */}
         <div className="w-1/2 flex flex-col items-center justify-center px-2">
           <div className="w-[120px] h-[120px] rounded-xl bg-[var(--color-bg-base)]/40 border border-[var(--color-gold)]/15 flex flex-col items-center justify-center">
@@ -86,10 +86,10 @@ export default function MarketPage() {
           <div className="mt-6 w-[175px]">
             <p className="text-[14px] text-[var(--color-text-secondary)] font-[family-name:var(--font-noto-serif)] mb-2">概率公示</p>
             <div className="space-y-1 text-[11px] font-[family-name:var(--font-noto-serif)]">
-              <div className="flex justify-between"><span style={{ color: "#a0a0a0" }}>普通</span><span className="text-[var(--color-text-secondary)]">48%</span></div>
-              <div className="flex justify-between"><span style={{ color: "#4a90d9" }}>稀有</span><span className="text-[var(--color-text-secondary)]">30%</span></div>
-              <div className="flex justify-between"><span style={{ color: "#8b5cf6" }}>史诗</span><span className="text-[var(--color-text-secondary)]">15%</span></div>
-              <div className="flex justify-between"><span style={{ color: "#c5a059" }}>传说</span><span className="text-[var(--color-text-secondary)]">7%</span></div>
+              <div className="flex justify-between"><span style={{ color: "#a0a0a0" }}>普通</span><span style={{ color: "#4a90d9" }}>48%</span></div>
+              <div className="flex justify-between"><span style={{ color: "#4a90d9" }}>稀有</span><span style={{ color: "#4a90d9" }}>30%</span></div>
+              <div className="flex justify-between"><span style={{ color: "#8b5cf6" }}>史诗</span><span style={{ color: "#4a90d9" }}>15%</span></div>
+              <div className="flex justify-between"><span style={{ color: "#c5a059" }}>传说</span><span style={{ color: "#4a90d9" }}>7%</span></div>
             </div>
           </div>
         </div>
