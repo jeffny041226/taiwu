@@ -157,11 +157,13 @@ export default function HomePage() {
       <header className="relative z-[10] flex items-center justify-between px-4 h-[60px]">
         <div className="flex items-center gap-3">
           {nickName ? (
-            /* 头像 hover 弹出退出按钮 */
-            <div className="relative" onMouseEnter={() => setShowLogout(true)} onMouseLeave={() => setShowLogout(false)}>
-              <Image src="/assets/avatars/avatar-default.png" alt="头像" width={48} height={48} className="rounded-full border border-[var(--color-gold)]/50 cursor-pointer" {...imgProps} />
+            /* 头像 click 切换退出按钮 */
+            <div className="relative">
+              <button type="button" onClick={() => setShowLogout(v => !v)} onBlur={() => setTimeout(() => setShowLogout(false), 200)} className="focus:outline-none">
+                <Image src="/assets/avatars/avatar-default.png" alt="头像" width={48} height={48} className="rounded-full border border-[var(--color-gold)]/50 cursor-pointer" {...imgProps} />
+              </button>
               {showLogout && (
-                <div className="absolute left-1/2 -translate-x-1/2 top-full mt-2 min-w-[80px] z-50">
+                <div className="absolute left-1/2 -translate-x-1/2 top-full mt-1 min-w-[80px] z-50">
                   <div className="bg-[rgba(20,14,10,0.95)] border border-[var(--color-gold)]/30 rounded-lg py-1 shadow-lg">
                     <button type="button" onClick={logout} className="w-full px-3 py-1.5 text-[13px] text-red-400 hover:bg-[rgba(255,255,255,0.05)] text-center font-[family-name:var(--font-noto-serif)] whitespace-nowrap">退出登录</button>
                   </div>

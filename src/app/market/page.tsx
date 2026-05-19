@@ -86,10 +86,10 @@ export default function MarketPage() {
           <div className="mt-6 w-[175px]">
             <p className="text-[14px] text-[var(--color-text-secondary)] font-[family-name:var(--font-noto-serif)] mb-2">概率公示</p>
             <div className="space-y-1 text-[11px] font-[family-name:var(--font-noto-serif)]">
-              <div className="flex justify-between"><span style={{ color: "#a0a0a0" }}>普通</span><span style={{ color: "#4a90d9" }}>48%</span></div>
-              <div className="flex justify-between"><span style={{ color: "#4a90d9" }}>稀有</span><span style={{ color: "#4a90d9" }}>30%</span></div>
-              <div className="flex justify-between"><span style={{ color: "#8b5cf6" }}>史诗</span><span style={{ color: "#4a90d9" }}>15%</span></div>
-              <div className="flex justify-between"><span style={{ color: "#c5a059" }}>传说</span><span style={{ color: "#4a90d9" }}>7%</span></div>
+              <div className="flex justify-between"><span style={{ color: "#a0a0a0" }}>普通</span><span style={{ color: "#4a90d9", fontWeight: "bold" }}>48%</span></div>
+              <div className="flex justify-between"><span style={{ color: "#4a90d9" }}>稀有</span><span style={{ color: "#4a90d9", fontWeight: "bold" }}>30%</span></div>
+              <div className="flex justify-between"><span style={{ color: "#8b5cf6" }}>史诗</span><span style={{ color: "#4a90d9", fontWeight: "bold" }}>15%</span></div>
+              <div className="flex justify-between"><span style={{ color: "#c5a059" }}>传说</span><span style={{ color: "#4a90d9", fontWeight: "bold" }}>7%</span></div>
             </div>
           </div>
         </div>
