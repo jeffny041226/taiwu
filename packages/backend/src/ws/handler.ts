@@ -463,7 +463,8 @@ export function handleMessage(ws: WebSocket, rawData: Buffer): void {
 
       const room = getRoom(roomId);
       if (!room) { send(ws, "room:error", { message: "房间不存在" }); return; }
-      if (room.phase !== "battling") { send(ws, "room:error", { message: "当前不在战斗阶段" }); return; }
+      // 不在战斗阶段时静默忽略（避免落后消息打断流程）
+      if (room.phase !== "battling") return;
 
       const validActions: Action[] = ["heavy_strike", "feint", "block", "chirp"];
       if (!validActions.includes(action as Action)) { send(ws, "room:error", { message: "无效动作" }); return; }

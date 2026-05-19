@@ -274,6 +274,10 @@ export default function BattlePage({ params }: { params: Promise<{ roomId: strin
       setLastMyAction(r.myAction);
       setLastEnemyAction(r.enemyAction);
       setWaitingForAction(false);
+      // 若本回合有阵亡，标记等待对方换蛐蛐而非继续出招
+      if (r.myDefeated || r.enemyDefeated) {
+        setPvpPhase("roundEnd");
+      }
 
       const myName = s.myTeam[s.myIdx]?.name || "我方";
       const enemyName = s.enemyTeam[s.enemyIdx]?.name || "对方";
