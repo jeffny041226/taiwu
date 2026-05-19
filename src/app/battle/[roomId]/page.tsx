@@ -179,7 +179,7 @@ export default function BattlePage({ params }: { params: Promise<{ roomId: strin
 
   // WS connection — practice mode (PVE) also connects via WS for server-side battle
   const wsReady = myUid && token && !!roomId;
-  const { send, on, off } = useWebSocket(wsReady ? roomId : null, token);
+  const { send, on, off, onEvent, offEvent } = useWebSocket(wsReady ? roomId : null, token);
 
   // ── PVP 状态 ──
   const [myTeam, setMyTeam] = useState<Cricket[]>([]);
@@ -377,6 +377,13 @@ export default function BattlePage({ params }: { params: Promise<{ roomId: strin
     on("battle:cricketChange", handleCricketChange);
     on("room:error", handleError);
 
+    // WS 重连后自动重发 room:join，保持房间绑定
+    const handleReconnect = () => {
+      console.log("[Battle] WS reconnected, re-sending room:join for roomId=" + roomId);
+      send("room:join", { roomId: roomId.toUpperCase(), uid: myUid, nickName: "玩家" });
+    };
+    onEvent("reconnect", handleReconnect);
+
     return () => {
       off("battle:data", handleBattleData);
       off("battle:roundResult", handleRoundResult);
@@ -384,6 +391,7 @@ export default function BattlePage({ params }: { params: Promise<{ roomId: strin
       off("battle:gameOver", handleGameOver);
       off("battle:cricketChange", handleCricketChange);
       off("room:error", handleError);
+      offEvent("reconnect", handleReconnect);
     };
   }, [wsReady, myUid, roomId]);
 

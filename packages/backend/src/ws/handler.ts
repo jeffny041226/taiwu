@@ -630,7 +630,8 @@ export function handleClose(ws: WebSocket): void {
         setTimeout(() => {
           const r = getRoom(roomId);
           if (!r) return;
-          if (!r.leftPlayer?.ws || (r.rightPlayer && !r.rightPlayer?.ws)) {
+          // PVE模式AI无真实ws，只检查真人玩家
+          if (!r.leftPlayer?.ws || (!r.isPractice && r.rightPlayer && !r.rightPlayer?.ws)) {
             finishRoom(r);
             scheduleCleanup(roomId);
           }
@@ -643,7 +644,8 @@ export function handleClose(ws: WebSocket): void {
       setTimeout(() => {
         const r = getRoom(roomId);
         if (!r) return;
-        if (!r.leftPlayer?.ws || (r.rightPlayer && !r.rightPlayer?.ws)) {
+        // PVE模式AI无真实ws，只检查真人玩家
+        if (!r.leftPlayer?.ws || (!r.isPractice && r.rightPlayer && !r.rightPlayer?.ws)) {
           finishRoom(r);
           scheduleCleanup(roomId);
         }

@@ -33,6 +33,7 @@ export default function RoomPage({ params }: { params: Promise<{ roomId: string 
   const { roomId } = use(params);
   const searchParams = useSearchParams();
   const fromMatch = searchParams.get("from") === "match";
+  const isPractice = searchParams.get("mode") === "practice";
 
   const [myUid, setMyUid] = useState("");
   const [token, setToken] = useState("");
@@ -101,7 +102,7 @@ export default function RoomPage({ params }: { params: Promise<{ roomId: string 
     }
   }, [isReady, myUid, roomId, wsReady, crickets]);
 
-  const { send, on, off } = useWebSocket(wsReady ? roomId : null, token);
+  const { send, on, off, onEvent, offEvent } = useWebSocket(wsReady ? roomId : null, token);
 
   const { count, isRunning, start, stop, reset } = useCountdown(CRICKET_SELECTION_TIMEOUT, autoReady);
 
@@ -124,7 +125,8 @@ export default function RoomPage({ params }: { params: Promise<{ roomId: string 
       }
       if (s.phase === "battling") {
         stop();
-        window.location.href = "/battle/" + roomId + "?uid=" + myUid + (fromMatch ? "&from=match" : "");
+        const practiceParam = isPractice ? "&mode=practice" : "";
+        window.location.href = "/battle/" + roomId + "?uid=" + myUid + (fromMatch ? "&from=match" : "") + practiceParam;
       }
     };
 
@@ -158,13 +160,21 @@ export default function RoomPage({ params }: { params: Promise<{ roomId: string 
     on("room:selectionStart", handleSelectionStart);
     on("room:error", handleError);
 
+    // WS 重连后自动重发 room:join
+    const handleReconnect = () => {
+      console.log("[Room] WS reconnected, re-sending room:join for roomId=" + roomId);
+      send("room:join", { roomId: roomId.toUpperCase(), uid: myUid, nickName: "玩家" });
+    };
+    onEvent("reconnect", handleReconnect);
+
     return () => {
       off("room:state", handleState);
       off("room:joined", handleJoined);
       off("room:selectionStart", handleSelectionStart);
       off("room:error", handleError);
+      offEvent("reconnect", handleReconnect);
     };
-  }, [wsReady, myUid, roomId, fromMatch]);
+  }, [wsReady, myUid, roomId, fromMatch, isPractice]);
 
   const toggleSelect = (id: number) => {
     if (isReady) return;
