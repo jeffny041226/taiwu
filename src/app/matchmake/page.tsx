@@ -141,10 +141,7 @@ function MatchmakeContent() {
           <Image src="/assets/avatars/avatar-default.png" alt="头像" width={48} height={48} className="rounded-full border border-[var(--color-gold)]/50" {...imgProps} />
           <span className="text-[var(--color-text-primary)] text-base truncate font-[family-name:var(--font-noto-serif)]">{myNickName}</span>
         </div>
-        <button type="button" onClick={handleCancel}
-          className="h-9 px-3 rounded-lg border border-[var(--color-gold)]/25 bg-[rgba(197,160,89,0.06)] text-[13px] text-[var(--color-text-muted)] font-[family-name:var(--font-noto-serif)] hover:border-[var(--color-gold)]/50 hover:text-[var(--color-text-secondary)] transition-all">
-          返回大厅
-        </button>
+
       </header>
 
       <section className="relative z-[10] flex flex-col items-center justify-center px-4" style={{ height: "calc(100dvh - 60px)" }}>
@@ -164,10 +161,6 @@ function MatchmakeContent() {
               <p className="text-[13px] text-[var(--color-text-muted)] font-[family-name:var(--font-noto-serif)]">暂时没有找到对手，试试换个时间</p>
             </div>
             <button type="button" onClick={handleRetry} className={btnClass}>重新匹配</button>
-            <button type="button" onClick={handleCancel}
-              className="text-[13px] text-[var(--color-text-muted)] font-[family-name:var(--font-noto-serif)] hover:text-[var(--color-text-secondary)] transition-colors underline underline-offset-2">
-              返回大厅
-            </button>
           </div>
         ) : matchState === "error" ? (
           <div className="flex flex-col items-center gap-6">
@@ -179,10 +172,6 @@ function MatchmakeContent() {
               <p className="text-[13px] text-red-400 font-[family-name:var(--font-noto-serif)]">{errorMsg}</p>
             </div>
             <button type="button" onClick={handleRetry} className={btnClass}>重试</button>
-            <button type="button" onClick={handleCancel}
-              className="text-[13px] text-[var(--color-text-muted)] font-[family-name:var(--font-noto-serif)] hover:text-[var(--color-text-secondary)] transition-colors underline underline-offset-2">
-              返回大厅
-            </button>
           </div>
         ) : (
           <div className="flex flex-col items-center gap-6">
