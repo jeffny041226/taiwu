@@ -359,6 +359,7 @@ export default function BattlePage({ params }: { params: Promise<{ roomId: strin
 
     const handleError = (payload: unknown) => {
       const p = payload as { message?: string };
+      console.log("[Battle] 收到 room:error: " + p.message);
       addLog("错误: " + String(p.message));
     };
 
@@ -382,9 +383,11 @@ export default function BattlePage({ params }: { params: Promise<{ roomId: strin
     };
   }, [wsReady, myUid, roomId]);
 
-  // ── PVP: 发送动作 ──
+  // ── PVP: 发送动作 (使用 ref 避免闭包过期) ──
+  const waitingRef = useRef(waitingForAction);
+  waitingRef.current = waitingForAction;
   const sendAction = (action: Action) => {
-    if (!waitingForAction) return;
+    if (!waitingRef.current) return;
     setWaitingForAction(false);
     send("battle:action", { roomId: roomId.toUpperCase(), uid: myUid, action });
   };
