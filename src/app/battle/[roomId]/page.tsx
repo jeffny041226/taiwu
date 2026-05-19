@@ -489,7 +489,8 @@ export default function BattlePage({ params }: { params: Promise<{ roomId: strin
   // 单次训练回合
   const doTrainRound = useCallback(() => {
     const tr = trainRef.current;
-    if (tr.running || tr.over || !tr.p || !tr.a) return;
+    console.log("[Train] doTrainRound called, round=" + tr.round + " running=" + tr.running + " over=" + tr.over + " hasP=" + !!tr.p + " hasA=" + !!tr.a + " pHp=" + tr.pHp + " aHp=" + tr.aHp);
+    if (tr.running || tr.over || !tr.p || !tr.a) { console.log("[Train] early return"); return; }
     // 防止索引越界时继续战斗
     if (tr.round >= 100) { tr.over = true; setTrainGameOver(true); setTrainWinner("你"); return; }
     tr.running = true;
@@ -530,11 +531,13 @@ export default function BattlePage({ params }: { params: Promise<{ roomId: strin
 
   // 训练定时器 — 持续触发回合
   useEffect(() => {
+    console.log("[Train] interval effect: isPractice=" + isPractice + " trainGameOver=" + trainGameOver + " pLen=" + playerTeam.length + " pIdx=" + currentPlayerIdx + " aIdx=" + currentAiIdx);
     if (!isPractice) return;
     // 队伍还没加载完
     if (playerTeam.length === 0) return;
     // 检查是否所有蛐蛐都已战败
     if (currentPlayerIdx >= playerTeam.length || currentAiIdx >= aiTeam.length) {
+      console.log("[Train] index out of bounds, forcing game over");
       if (!trainGameOver) {
         setTrainGameOver(true);
         setTrainWinner(currentPlayerIdx < playerTeam.length ? "你" : "AI");
@@ -542,25 +545,28 @@ export default function BattlePage({ params }: { params: Promise<{ roomId: strin
       return;
     }
     if (trainGameOver) return;
+    console.log("[Train] setting up interval");
     const id = setInterval(doTrainRound, 1500);
-    return () => clearInterval(id);
+    return () => { console.log("[Train] clearing interval"); clearInterval(id); };
   }, [isPractice, trainGameOver, doTrainRound, currentPlayerIdx, currentAiIdx, playerTeam.length, aiTeam.length]);
 
   useEffect(() => {
-    if (trainAiHp <= 0 && isPractice) {
+    if (!isPractice || trainGameOver) return;
+    if (trainAiHp <= 0 && playerTeam.length > 0) {
       const next = currentAiIdx + 1;
       if (next >= aiTeam.length) { setTrainGameOver(true); setTrainWinner("你"); }
       else setCurrentAiIdx(next);
     }
-  }, [trainAiHp, currentAiIdx, aiTeam, isPractice]);
+  }, [trainAiHp, currentAiIdx, aiTeam, isPractice, trainGameOver, playerTeam.length]);
 
   useEffect(() => {
-    if (trainPlayerHp <= 0 && isPractice) {
+    if (!isPractice || trainGameOver) return;
+    if (trainPlayerHp <= 0 && playerTeam.length > 0) {
       const next = currentPlayerIdx + 1;
       if (next >= playerTeam.length) { setTrainGameOver(true); setTrainWinner("AI"); }
       else setCurrentPlayerIdx(next);
     }
-  }, [trainPlayerHp, currentPlayerIdx, playerTeam, isPractice]);
+  }, [trainPlayerHp, currentPlayerIdx, playerTeam, isPractice, trainGameOver, playerTeam.length]);
 
   // ── 当前蛐蛐 ──
   const myCricket = isPractice ? playerTeam[currentPlayerIdx] : myTeam[myIdx];
