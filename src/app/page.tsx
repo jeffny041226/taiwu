@@ -167,6 +167,7 @@ export default function HomePage() {
             <button type="button" onClick={logout} className="text-[12px] text-[var(--color-text-muted)] hover:text-red-400 transition-colors font-[family-name:var(--font-noto-serif)]">退出</button>
           )}
           <Link href="/market" className="h-11 px-2.5 flex items-center gap-1.5 rounded-lg border border-[var(--color-gold)]/25 bg-[rgba(197,160,89,0.06)] hover:bg-[rgba(197,160,89,0.12)] hover:border-[var(--color-gold)]/50 transition-all">
+            <Image src="/assets/ui/icons/icon-market.png" alt="虫市" width={24} height={24} {...imgProps} />
             <span className="text-[13px] text-[var(--color-gold)] font-[family-name:var(--font-noto-serif)]">虫市</span>
           </Link>
           <Link href="/backpack" className="h-11 px-2.5 flex items-center gap-1.5 rounded-lg border border-[var(--color-gold)]/25 bg-[rgba(197,160,89,0.06)] hover:bg-[rgba(197,160,89,0.12)] hover:border-[var(--color-gold)]/50 transition-all">
