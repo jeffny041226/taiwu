@@ -163,9 +163,6 @@ export default function HomePage() {
           )}
         </div>
         <div className="flex items-center gap-2">
-          {myUid && (
-            <button type="button" onClick={logout} className="text-[12px] text-[var(--color-text-muted)] hover:text-red-400 transition-colors font-[family-name:var(--font-noto-serif)]">退出</button>
-          )}
           <Link href="/market" className="h-11 px-2.5 flex items-center gap-1.5 rounded-lg border border-[var(--color-gold)]/25 bg-[rgba(197,160,89,0.06)] hover:bg-[rgba(197,160,89,0.12)] hover:border-[var(--color-gold)]/50 transition-all">
             <Image src="/assets/ui/icons/icon-market.png" alt="虫市" width={24} height={24} {...imgProps} />
             <span className="text-[13px] text-[var(--color-gold)] font-[family-name:var(--font-noto-serif)]">虫市</span>
@@ -174,6 +171,9 @@ export default function HomePage() {
             <Image src="/assets/ui/icons/icon-backpack.png" alt="背包" width={24} height={24} {...imgProps} />
             <span className="text-[13px] text-[var(--color-gold)] font-[family-name:var(--font-noto-serif)]">背包</span>
           </Link>
+          {myUid && (
+            <button type="button" onClick={logout} className="ml-2 text-[12px] text-[var(--color-text-muted)] hover:text-red-400 transition-colors font-[family-name:var(--font-noto-serif)]">退出</button>
+          )}
         </div>
       </header>
 
