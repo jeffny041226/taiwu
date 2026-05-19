@@ -570,21 +570,22 @@ export default function BattlePage({ params }: { params: Promise<{ roomId: strin
     }
   }, [trainPlayerHp, currentPlayerIdx, playerTeam, isPractice, trainGameOver, playerTeam.length, wsReady]);
 
-  // ── 当前蛐蛐 ──
-  const myCricket = isPractice ? playerTeam[currentPlayerIdx] : myTeam[myIdx];
-  const enemyCricket = isPractice ? aiTeam[currentAiIdx] : enemyTeam[enemyIdx];
-  const currentMyHp = isPractice ? trainPlayerHp : myHp;
-  const currentMyStamina = isPractice ? trainPlayerStamina : myStamina;
-  const currentMySpirit = isPractice ? trainPlayerSpirit : mySpirit;
-  const currentEnemyHp = isPractice ? trainAiHp : enemyHp;
-  const currentEnemyStamina = isPractice ? trainAiStamina : enemyStamina;
-  const currentEnemySpirit = isPractice ? trainAiSpirit : enemySpirit;
-  const myTeamArr = isPractice ? playerTeam : myTeam;
-  const enemyTeamArr = isPractice ? aiTeam : enemyTeam;
-  const myCurrentIdx = isPractice ? currentPlayerIdx : myIdx;
-  const enemyCurrentIdx = isPractice ? currentAiIdx : enemyIdx;
-  const isGameOver = isPractice ? trainGameOver : pvpPhase === "finished";
-  const winnerText = isPractice ? trainWinner : (pvpGameOver?.winner === "me" ? "你" : "对方");
+  // ── 当前蛐蛐（WS 连接时使用 PVP 数据流）──
+  const usePvpData = wsReady || !isPractice;
+  const myCricket = usePvpData ? myTeam[myIdx] : playerTeam[currentPlayerIdx];
+  const enemyCricket = usePvpData ? enemyTeam[enemyIdx] : aiTeam[currentAiIdx];
+  const currentMyHp = usePvpData ? myHp : trainPlayerHp;
+  const currentMyStamina = usePvpData ? myStamina : trainPlayerStamina;
+  const currentMySpirit = usePvpData ? mySpirit : trainPlayerSpirit;
+  const currentEnemyHp = usePvpData ? enemyHp : trainAiHp;
+  const currentEnemyStamina = usePvpData ? enemyStamina : trainAiStamina;
+  const currentEnemySpirit = usePvpData ? enemySpirit : trainAiSpirit;
+  const myTeamArr = usePvpData ? myTeam : playerTeam;
+  const enemyTeamArr = usePvpData ? enemyTeam : aiTeam;
+  const myCurrentIdx = usePvpData ? myIdx : currentPlayerIdx;
+  const enemyCurrentIdx = usePvpData ? enemyIdx : currentAiIdx;
+  const isGameOver = usePvpData ? pvpPhase === "finished" : trainGameOver;
+  const winnerText = usePvpData ? (pvpGameOver?.winner === "me" ? "你" : "对方") : trainWinner;
 
   if (!myCricket && !isGameOver) {
     if (isPractice && playerTeam.length === 0) {
