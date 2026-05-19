@@ -490,6 +490,8 @@ export default function BattlePage({ params }: { params: Promise<{ roomId: strin
   const doTrainRound = useCallback(() => {
     const tr = trainRef.current;
     if (tr.running || tr.over || !tr.p || !tr.a) return;
+    // 防止索引越界时继续战斗
+    if (tr.round >= 100) { tr.over = true; setTrainGameOver(true); setTrainWinner("你"); return; }
     tr.running = true;
     setTrainAttacking(true);
     const pAction = ["heavy_strike", "feint", "block", "chirp"][Math.floor(Math.random() * 4)] as Action;
@@ -528,10 +530,21 @@ export default function BattlePage({ params }: { params: Promise<{ roomId: strin
 
   // 训练定时器 — 持续触发回合
   useEffect(() => {
-    if (!isPractice || trainGameOver) return;
+    if (!isPractice) return;
+    // 队伍还没加载完
+    if (playerTeam.length === 0) return;
+    // 检查是否所有蛐蛐都已战败
+    if (currentPlayerIdx >= playerTeam.length || currentAiIdx >= aiTeam.length) {
+      if (!trainGameOver) {
+        setTrainGameOver(true);
+        setTrainWinner(currentPlayerIdx < playerTeam.length ? "你" : "AI");
+      }
+      return;
+    }
+    if (trainGameOver) return;
     const id = setInterval(doTrainRound, 1500);
     return () => clearInterval(id);
-  }, [isPractice, trainGameOver, doTrainRound]);
+  }, [isPractice, trainGameOver, doTrainRound, currentPlayerIdx, currentAiIdx, playerTeam.length, aiTeam.length]);
 
   useEffect(() => {
     if (trainAiHp <= 0 && isPractice) {
@@ -565,7 +578,7 @@ export default function BattlePage({ params }: { params: Promise<{ roomId: strin
   const isGameOver = isPractice ? trainGameOver : pvpPhase === "finished";
   const winnerText = isPractice ? trainWinner : (pvpGameOver?.winner === "me" ? "你" : "对方");
 
-  if (!myCricket) {
+  if (!myCricket && !isGameOver) {
     if (isPractice && playerTeam.length === 0) {
       // Training mode — still loading player team from backpack
       return (
