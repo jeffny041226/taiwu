@@ -63,18 +63,11 @@ export default function AuthPage() {
   const isLoading = status === "loading";
 
   return (
-    <div className="relative w-full min-h-[100dvh] bg-[var(--color-bg-base)]">
+    <div className="relative w-full min-h-[100dvh] bg-cover bg-center" style={{ backgroundImage: "linear-gradient(180deg, #2a2212 0%, #3d3020 30%, #2a2212 70%, #1a1408 100%)" }}>
       <TopBar title="登录" backHref="/" />
 
-      {/* Logo */}
-      <div className="flex flex-col items-center pt-8 pb-6">
-        <div className="w-[260px] h-[70px] flex items-center justify-center">
-          <Image src="/assets/ui/misc/logo-text.png" alt="斗蛐蛐" width={260} height={70} unoptimized className="object-contain" />
-        </div>
-        <p className="text-[14px] text-[var(--color-text-secondary)] tracking-[3px] font-[family-name:var(--font-noto-serif)] mt-2">
-          登录以保存您的战绩与蛐蛐
-        </p>
-      </div>
+      {/* Spacer 保持原布局高度 */}
+      <div className="pt-14" />
 
       {/* Tab switcher */}
       <div className="flex justify-center gap-4 mb-6">

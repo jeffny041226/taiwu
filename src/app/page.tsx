@@ -189,13 +189,20 @@ export default function HomePage() {
         </div>
       </header>
 
+      {/* 斗蛐蛐 文案 */}
+      <div className="absolute left-0 right-0 z-[10] text-center" style={{ top: "calc(25% - 20px)" }}>
+        <h1 className="text-[48px] font-bold text-[var(--color-gold)] font-[family-name:var(--font-ma-shan)] tracking-[12px] drop-shadow-[0_2px_8px_rgba(0,0,0,0.6)]">
+          斗蛐蛐
+        </h1>
+      </div>
+
       {/* Error */}
       {errorMsg && (
         <div className="relative z-[15] mx-4 mb-2 text-center text-[14px] text-red-400 font-[family-name:var(--font-noto-serif)]">{errorMsg}</div>
       )}
 
       {/* Buttons */}
-      <section className="absolute bottom-0 left-0 right-0 z-[10] flex flex-col items-center gap-3 px-4 pb-8">
+      <section className="absolute bottom-0 left-0 right-0 z-[10] flex flex-col items-center gap-3 px-4 pb-[110px]">
         <Link href={myUid ? "/matchmake" : "/auth"} className={btnClass + " flex items-center justify-center border-[var(--color-gold)]/60 bg-gradient-to-b from-[rgba(197,160,89,0.15)] to-[rgba(20,14,10,0.9)]"}>匹配对战</Link>
 
         <button type="button" onClick={myUid ? handleCreateRoom : () => window.location.href = "/auth"} disabled={isLoading} className={btnClass}>开房对战</button>
