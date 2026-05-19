@@ -3,7 +3,6 @@
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { MapleLeaves } from "@/components/game/MapleLeaves";
 import { LoadingOverlay } from "@/components/game/LoadingOverlay";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import { ensureAuth, isAuthenticated, logout } from "@/lib/auth";
@@ -143,8 +142,15 @@ export default function HomePage() {
 
   return (
     <div className="relative w-full h-[100dvh] overflow-hidden">
-      <div className="absolute inset-0 bg-[var(--color-bg-base)]" />
-      <MapleLeaves />
+      <Image
+        src="/assets/backgrounds/bg-home.webp"
+        alt=""
+        fill
+        {...imgProps}
+        className="object-cover object-center"
+        priority
+      />
+      <div className="absolute inset-0 bg-black/40" />
 
       {/* Top Bar */}
       <header className="relative z-[10] flex items-center justify-between px-4 h-[60px]">
@@ -170,33 +176,13 @@ export default function HomePage() {
         </div>
       </header>
 
-      {/* Logo */}
-      <section className="relative z-[10] flex flex-col items-center pt-6 pb-4">
-        <div className="w-[260px] h-[70px] flex items-center justify-center">
-          <Image src="/assets/ui/misc/logo-text.png" alt="斗蛐蛐" width={260} height={70} priority {...imgProps} />
-        </div>
-        <p className="text-[13px] text-[var(--color-text-secondary)] tracking-[4px] font-[family-name:var(--font-noto-serif)]">巅峰至臻对战版</p>
-      </section>
-
-      {/* Cricket Display */}
-      <section className="relative z-[10] flex flex-col items-center px-4 pt-2 pb-6">
-        <div className="w-[300px] h-[260px] rounded-xl border border-[var(--color-gold)]/15 bg-[var(--color-bg-base)]/40 flex flex-col items-center justify-center">
-          <p className="text-[14px] text-[var(--color-gold)] font-[family-name:var(--font-ma-shan)]">铁齿铜牙</p>
-          <p className="text-[22px] font-bold text-[var(--color-text-primary)] font-[family-name:var(--font-noto-serif)]">赤牙将军</p>
-          <div className="w-[260px] h-[180px] flex items-center justify-center my-2">
-            <Image src="/assets/crickets/cricket-001.png" alt="赤牙将军" width={260} height={180} {...imgProps} className="object-contain w-full h-full" />
-          </div>
-          <p className="text-[11px] text-[var(--color-text-muted)] tracking-[2px] font-[family-name:var(--font-noto-serif)]">攻25&nbsp;&nbsp;防20&nbsp;&nbsp;速20</p>
-        </div>
-      </section>
-
       {/* Error */}
       {errorMsg && (
         <div className="relative z-[15] mx-4 mb-2 text-center text-[14px] text-red-400 font-[family-name:var(--font-noto-serif)]">{errorMsg}</div>
       )}
 
       {/* Buttons */}
-      <section className="relative z-[10] flex flex-col items-center gap-3 px-4 pb-8">
+      <section className="absolute bottom-0 left-0 right-0 z-[10] flex flex-col items-center gap-3 px-4 pb-8">
         <Link href="/matchmake" className={btnClass + " flex items-center justify-center border-[var(--color-gold)]/60 bg-gradient-to-b from-[rgba(197,160,89,0.15)] to-[rgba(20,14,10,0.9)]"}>匹配对战</Link>
 
         <button type="button" onClick={handleCreateRoom} disabled={isLoading} className={btnClass}>开房对战</button>
