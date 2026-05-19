@@ -159,13 +159,7 @@ function startActionTimer(roomId: string): void {
     const allActions: Action[] = ["heavy_strike", "feint", "block", "chirp"];
     if (!r.leftAction) r.leftAction = allActions[Math.floor(Math.random() * 4)];
     if (!r.rightAction) {
-      if (r.isPractice) {
-        const aiCricket = r.rightCrickets[r.currentRightIndex];
-        const playerCricket = r.leftCrickets[r.currentLeftIndex];
-        r.rightAction = aiChooseAction(aiCricket, r.leftAction, playerCricket);
-      } else {
-        r.rightAction = allActions[Math.floor(Math.random() * 4)];
-      }
+      r.rightAction = allActions[Math.floor(Math.random() * 4)];
     }
     handleRoundSettlement(roomId);
   }, ACTION_TIMEOUT);
@@ -369,9 +363,12 @@ export function handleMessage(ws: WebSocket, rawData: Buffer): void {
       room.rightPlayer = createAIPlayer();
       room.rightCrickets = createAICrickets();
       room.phase = "ready";
+      room.selectionStartTime = Date.now();
 
       send(ws, "room:created", { roomId });
       send(ws, "room:state", buildRoomState(room));
+      send(ws, "room:selectionStart", { timeout: CRICKET_SELECTION_TIMEOUT });
+      startSelectionTimer(roomId);
       break;
     }
 
@@ -483,10 +480,8 @@ export function handleMessage(ws: WebSocket, rawData: Buffer): void {
       else setAction(room, "right", action);
 
       if (room.isPractice && room.leftAction) {
-        const aiCricket = room.rightCrickets[room.currentRightIndex];
-        const playerCricket = room.leftCrickets[room.currentLeftIndex];
-        const aiAction = aiChooseAction(aiCricket, room.leftAction, playerCricket);
-        setAction(room, "right", aiAction);
+        const actions: Action[] = ["heavy_strike", "feint", "block", "chirp"];
+        setAction(room, "right", actions[Math.floor(Math.random() * 4)]);
       }
 
       if (bothActionsReady(room)) handleRoundSettlement(roomId);

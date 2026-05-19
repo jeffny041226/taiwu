@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { MapleLeaves } from "@/components/game/MapleLeaves";
@@ -35,6 +35,21 @@ export default function HomePage() {
       }
     });
   }, []);
+
+  // Auto-trigger practice replay(?practice=1)
+  const autoPracticeRef = useRef(false);
+  useEffect(() => {
+    if (myUid && window.location.search === "?practice=1") {
+      window.history.replaceState(null, "", "/");
+      autoPracticeRef.current = true;
+    }
+  }, [myUid]);
+  useEffect(() => {
+    if (autoPracticeRef.current && wsReady && action === "idle") {
+      autoPracticeRef.current = false;
+      handlePractice();
+    }
+  });
 
   // WS — use "lobby" as placeholder roomId
   const wsReady = myUid && token;
@@ -84,7 +99,7 @@ export default function HomePage() {
   useEffect(() => {
     if (!createdRoomId) return;
     if (isPracticeMode) {
-      window.location.href = `/battle/${createdRoomId}?mode=practice&uid=${myUid}`;
+      window.location.href = `/room/${createdRoomId}?uid=${myUid}&mode=practice`;
     } else {
       window.location.href = `/room/${createdRoomId}?uid=${myUid}`;
     }
@@ -105,6 +120,7 @@ export default function HomePage() {
       return;
     }
     setAction("practice");
+    setIsPracticeMode(true);
     send("room:practice", { uid: myUid, nickName: "玩家" });
     // 6秒超时保护
     const timer = setTimeout(() => {

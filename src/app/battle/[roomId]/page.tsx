@@ -177,8 +177,8 @@ export default function BattlePage({ params }: { params: Promise<{ roomId: strin
     });
   }, []);
 
-  // WS connection
-  const wsReady = !isPractice && myUid && token;
+  // WS connection — practice mode (PVE) also connects via WS for server-side battle
+  const wsReady = myUid && token && !!roomId;
   const { send, on, off } = useWebSocket(wsReady ? roomId : null, token);
 
   // ── PVP 状态 ──
@@ -391,7 +391,7 @@ export default function BattlePage({ params }: { params: Promise<{ roomId: strin
 
   // 自动发送随机动作
   useEffect(() => {
-    if (!isPractice && pvpPhase === "battling" && waitingForAction) {
+    if (pvpPhase === "battling" && waitingForAction) {
       const actions: Action[] = ["heavy_strike", "feint", "block", "chirp"];
       const timer = setTimeout(() => sendAction(actions[Math.floor(Math.random() * 4)]), 750);
       return () => clearTimeout(timer);
@@ -400,7 +400,7 @@ export default function BattlePage({ params }: { params: Promise<{ roomId: strin
 
   // 局间自动继续
   useEffect(() => {
-    if (!isPractice && pvpPhase === "roundEnd") {
+    if (pvpPhase === "roundEnd") {
       const timer = setTimeout(() => sendNextRound(), Math.round(AUTO_READY_DELAY / 2));
       return () => clearTimeout(timer);
     }
@@ -489,8 +489,9 @@ export default function BattlePage({ params }: { params: Promise<{ roomId: strin
   // 单次训练回合
   const doTrainRound = useCallback(() => {
     const tr = trainRef.current;
-    console.log("[Train] doTrainRound called, round=" + tr.round + " running=" + tr.running + " over=" + tr.over + " hasP=" + !!tr.p + " hasA=" + !!tr.a + " pHp=" + tr.pHp + " aHp=" + tr.aHp);
-    if (tr.running || tr.over || !tr.p || !tr.a) { console.log("[Train] early return"); return; }
+    if (tr.over) return;
+    console.log("[Train] doTrainRound called, round=" + tr.round + " running=" + tr.running + " hasP=" + !!tr.p + " hasA=" + !!tr.a + " pHp=" + tr.pHp + " aHp=" + tr.aHp);
+    if (tr.running || !tr.p || !tr.a) { console.log("[Train] early return"); return; }
     // 防止索引越界时继续战斗
     if (tr.round >= 100) { tr.over = true; setTrainGameOver(true); setTrainWinner("你"); return; }
     tr.running = true;
@@ -529,8 +530,9 @@ export default function BattlePage({ params }: { params: Promise<{ roomId: strin
     setTimeout(() => { setLastMyAction(null); setLastEnemyAction(null); setShowDamage(null); tr.running = false; setTrainAttacking(false); }, 600);
   }, []);
 
-  // 训练定时器 — 持续触发回合
+  // 训练定时器 — 持续触发回合（仅在 WS 未连接时使用）
   useEffect(() => {
+    if (wsReady) return;
     console.log("[Train] interval effect: isPractice=" + isPractice + " trainGameOver=" + trainGameOver + " pLen=" + playerTeam.length + " pIdx=" + currentPlayerIdx + " aIdx=" + currentAiIdx);
     if (!isPractice) return;
     // 队伍还没加载完
@@ -548,25 +550,25 @@ export default function BattlePage({ params }: { params: Promise<{ roomId: strin
     console.log("[Train] setting up interval");
     const id = setInterval(doTrainRound, 1500);
     return () => { console.log("[Train] clearing interval"); clearInterval(id); };
-  }, [isPractice, trainGameOver, doTrainRound, currentPlayerIdx, currentAiIdx, playerTeam.length, aiTeam.length]);
+  }, [isPractice, trainGameOver, doTrainRound, currentPlayerIdx, currentAiIdx, playerTeam.length, aiTeam.length, wsReady]);
 
   useEffect(() => {
-    if (!isPractice || trainGameOver) return;
+    if (wsReady || !isPractice || trainGameOver) return;
     if (trainAiHp <= 0 && playerTeam.length > 0) {
       const next = currentAiIdx + 1;
       if (next >= aiTeam.length) { setTrainGameOver(true); setTrainWinner("你"); }
       else setCurrentAiIdx(next);
     }
-  }, [trainAiHp, currentAiIdx, aiTeam, isPractice, trainGameOver, playerTeam.length]);
+  }, [trainAiHp, currentAiIdx, aiTeam, isPractice, trainGameOver, playerTeam.length, wsReady]);
 
   useEffect(() => {
-    if (!isPractice || trainGameOver) return;
+    if (wsReady || !isPractice || trainGameOver) return;
     if (trainPlayerHp <= 0 && playerTeam.length > 0) {
       const next = currentPlayerIdx + 1;
       if (next >= playerTeam.length) { setTrainGameOver(true); setTrainWinner("AI"); }
       else setCurrentPlayerIdx(next);
     }
-  }, [trainPlayerHp, currentPlayerIdx, playerTeam, isPractice, trainGameOver, playerTeam.length]);
+  }, [trainPlayerHp, currentPlayerIdx, playerTeam, isPractice, trainGameOver, playerTeam.length, wsReady]);
 
   // ── 当前蛐蛐 ──
   const myCricket = isPractice ? playerTeam[currentPlayerIdx] : myTeam[myIdx];
@@ -697,8 +699,8 @@ export default function BattlePage({ params }: { params: Promise<{ roomId: strin
         </div>
       </div>
 
-      {/* PVP: 自动对战标识 */}
-      {!isPractice && pvpPhase === "battling" && (
+      {/* 自动对战标识 */}
+      {pvpPhase === "battling" && (
         <div className="absolute bottom-[155px] left-0 right-0 z-10 flex justify-center">
           <div className="px-4 py-2 rounded-lg border border-[var(--color-gold)]/20 bg-[rgba(197,160,89,0.05)]">
             <span className="inline-block w-2 h-2 rounded-full bg-[var(--color-gold)] animate-pulse mr-2" />
@@ -744,7 +746,9 @@ export default function BattlePage({ params }: { params: Promise<{ roomId: strin
             </p>
             <div className="flex gap-3">
               <a href="/" className="flex-1 h-11 rounded-[10px] border border-[var(--color-gold)]/30 bg-gradient-to-b from-[rgba(30,22,16,0.85)] to-[rgba(20,14,10,0.9)] text-[18px] font-bold text-[var(--color-gold)] font-[family-name:var(--font-noto-serif)] items-center justify-center flex hover:border-[var(--color-gold)]/70 transition-all active:scale-[0.98]">返回大厅</a>
-              {fromMatch ? (
+              {isPractice ? (
+                <a href="/?practice=1" className="flex-1 h-11 rounded-[10px] border border-[var(--color-gold)]/30 bg-gradient-to-b from-[rgba(30,22,16,0.85)] to-[rgba(20,14,10,0.9)] text-[18px] font-bold text-[var(--color-gold)] font-[family-name:var(--font-noto-serif)] items-center justify-center flex hover:border-[var(--color-gold)]/70 transition-all active:scale-[0.98]">再来一局</a>
+              ) : fromMatch ? (
                 <a href="/matchmake" className="flex-1 h-11 rounded-[10px] border border-[var(--color-gold)]/30 bg-gradient-to-b from-[rgba(30,22,16,0.85)] to-[rgba(20,14,10,0.9)] text-[18px] font-bold text-[var(--color-gold)] font-[family-name:var(--font-noto-serif)] items-center justify-center flex hover:border-[var(--color-gold)]/70 transition-all active:scale-[0.98]">再来一局</a>
               ) : (
                 <a href={"/room/" + roomId + "?uid=" + myUid} className="flex-1 h-11 rounded-[10px] border border-[var(--color-gold)]/30 bg-gradient-to-b from-[rgba(30,22,16,0.85)] to-[rgba(20,14,10,0.9)] text-[18px] font-bold text-[var(--color-gold)] font-[family-name:var(--font-noto-serif)] items-center justify-center flex hover:border-[var(--color-gold)]/70 transition-all active:scale-[0.98]">再来一局</a>
