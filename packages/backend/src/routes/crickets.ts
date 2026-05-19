@@ -3,6 +3,9 @@ import { authMiddleware } from "../middleware/auth";
 import { getSupabase } from "../db/supabase";
 import { CRICKET_TEMPLATES } from "@taiwu/shared/data/cricket-templates";
 import { memoryGetAll, memoryDelete } from "../lib/memory-store";
+import type { Tier } from "@taiwu/shared/types/cricket";
+
+const TIER_ORDER: Record<Tier, number> = { common: 0, rare: 1, epic: 2, legendary: 3 };
 
 export const cricketsRouter = Router();
 
@@ -11,7 +14,16 @@ cricketsRouter.get("/", authMiddleware, async (req, res) => {
 
   function fromMemory(): void {
     const mem = memoryGetAll(uid);
-    const crickets = mem.map(uc => {
+    const crickets = mem
+      .sort((a, b) => {
+        const tA = CRICKET_TEMPLATES.find(t => t.id === a.template_id);
+        const tB = CRICKET_TEMPLATES.find(t => t.id === b.template_id);
+        const tierA = TIER_ORDER[(tA?.tier as Tier) || "common"] ?? 0;
+        const tierB = TIER_ORDER[(tB?.tier as Tier) || "common"] ?? 0;
+        if (tierB !== tierA) return tierB - tierA;
+        return new Date(b.obtained_at || 0).getTime() - new Date(a.obtained_at || 0).getTime();
+      })
+      .map(uc => {
       const template = CRICKET_TEMPLATES.find(t => t.id === uc.template_id);
       return { ...uc, template };
     });
@@ -29,7 +41,14 @@ cricketsRouter.get("/", authMiddleware, async (req, res) => {
 
     if (error) { console.error("[Crickets] Supabase query error:", error.message); fromMemory(); return; }
 
-    const crickets = (data || []).map((uc: any) => ({
+    const crickets = (data || [])
+      .sort((a: any, b: any) => {
+        const tierA = TIER_ORDER[(a.cricket_templates?.tier as Tier) || "common"] ?? 0;
+        const tierB = TIER_ORDER[(b.cricket_templates?.tier as Tier) || "common"] ?? 0;
+        if (tierB !== tierA) return tierB - tierA;
+        return new Date(b.obtained_at).getTime() - new Date(a.obtained_at).getTime();
+      })
+      .map((uc: any) => ({
       id: uc.id,
       uid: uc.uid,
       template_id: uc.template_id,
