@@ -196,6 +196,7 @@ export default function BattlePage({ params }: { params: Promise<{ roomId: strin
   const [waitingForAction, setWaitingForAction] = useState(false);
   const [pvpPhase, setPvpPhase] = useState<"loading" | "battling" | "roundEnd" | "finished">("loading");
   const [pvpGameOver, setPvpGameOver] = useState<{ winner: string; myScore: number; enemyScore: number } | null>(null);
+  const [rematchLoading, setRematchLoading] = useState(false);
   const [showDamage, setShowDamage] = useState<{ dmg: number; target: "me" | "enemy" } | null>(null);
   const [lastMyAction, setLastMyAction] = useState<Action | null>(null);
   const [lastEnemyAction, setLastEnemyAction] = useState<Action | null>(null);
@@ -240,6 +241,8 @@ export default function BattlePage({ params }: { params: Promise<{ roomId: strin
 
     const handleBattleData = (payload: unknown) => {
       console.log("[Battle] 收到 battle:data!");
+      setRematchLoading(false);
+      setPvpGameOver(null);
       const d = payload as { myCrickets: Cricket[], enemyCrickets: Cricket[], myIdx: number, enemyIdx: number, myScore: number, enemyScore: number, battleMode?: string };
       setMyTeam(d.myCrickets);
       setEnemyTeam(d.enemyCrickets);
@@ -426,6 +429,12 @@ export default function BattlePage({ params }: { params: Promise<{ roomId: strin
   // ── PVP: 局间下一局 ──
   const sendNextRound = () => {
     send("battle:nextRound", { roomId: roomId.toUpperCase(), uid: myUid });
+  };
+
+  // ── PVE: 再来一局 ──
+  const handleRematch = () => {
+    setRematchLoading(true);
+    send("battle:rematch", { roomId: roomId.toUpperCase() });
   };
 
   // ── 训练模式状态 ──
@@ -765,7 +774,8 @@ export default function BattlePage({ params }: { params: Promise<{ roomId: strin
             <div className="flex gap-3">
               <a href="/" className="flex-1 h-11 rounded-[10px] border border-[var(--color-gold)]/30 bg-gradient-to-b from-[rgba(30,22,16,0.85)] to-[rgba(20,14,10,0.9)] text-[18px] font-bold text-[var(--color-gold)] font-[family-name:var(--font-noto-serif)] items-center justify-center flex hover:border-[var(--color-gold)]/70 transition-all active:scale-[0.98]">返回大厅</a>
               {isPractice ? (
-                <a href="/?practice=1" className="flex-1 h-11 rounded-[10px] border border-[var(--color-gold)]/30 bg-gradient-to-b from-[rgba(30,22,16,0.85)] to-[rgba(20,14,10,0.9)] text-[18px] font-bold text-[var(--color-gold)] font-[family-name:var(--font-noto-serif)] items-center justify-center flex hover:border-[var(--color-gold)]/70 transition-all active:scale-[0.98]">再来一局</a>
+                <button type="button" onClick={handleRematch} disabled={rematchLoading}
+                  className="flex-1 h-11 rounded-[10px] border border-[var(--color-gold)]/30 bg-gradient-to-b from-[rgba(30,22,16,0.85)] to-[rgba(20,14,10,0.9)] text-[18px] font-bold text-[var(--color-gold)] font-[family-name:var(--font-noto-serif)] items-center justify-center flex hover:border-[var(--color-gold)]/70 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed">{rematchLoading ? "重开中..." : "再来一局"}</button>
               ) : fromMatch ? (
                 <a href="/matchmake" className="flex-1 h-11 rounded-[10px] border border-[var(--color-gold)]/30 bg-gradient-to-b from-[rgba(30,22,16,0.85)] to-[rgba(20,14,10,0.9)] text-[18px] font-bold text-[var(--color-gold)] font-[family-name:var(--font-noto-serif)] items-center justify-center flex hover:border-[var(--color-gold)]/70 transition-all active:scale-[0.98]">再来一局</a>
               ) : (

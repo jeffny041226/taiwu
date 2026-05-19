@@ -166,6 +166,29 @@ export function finishRoom(room: Room): void {
   }
 }
 
+/** 重置战斗状态用于再来一局（PVE） */
+export function resetBattleForRematch(room: Room): void {
+  room.phase = "battling";
+  room.currentLeftIndex = 0;
+  room.currentRightIndex = 0;
+  room.leftScore = 0;
+  room.rightScore = 0;
+  room.leftAction = null;
+  room.rightAction = null;
+  room.lastDefeatedSide = null;
+  // 所有蛐蛐回满
+  for (const c of room.leftCrickets) {
+    c.hp = c.maxHp;
+    c.stamina = c.maxStamina;
+    c.spirit = c.spirit; // spirit base 保持
+  }
+  for (const c of room.rightCrickets) {
+    c.hp = c.maxHp;
+    c.stamina = c.maxStamina;
+    c.spirit = c.spirit;
+  }
+}
+
 /** 清除选蛐蛐倒计时 */
 export function clearSelectionTimer(roomId: string): void {
   const room = getRoom(roomId);
@@ -268,4 +291,13 @@ export function scheduleCleanup(roomId: string): void {
     cleanupTimers.delete(roomId);
   }, ROOM_CLEANUP_DELAY);
   cleanupTimers.set(roomId, timer);
+}
+
+/** 取消已调度的清理（用于再来一局等场景） */
+export function cancelScheduledCleanup(roomId: string): void {
+  const existing = cleanupTimers.get(roomId);
+  if (existing) {
+    clearTimeout(existing);
+    cleanupTimers.delete(roomId);
+  }
 }

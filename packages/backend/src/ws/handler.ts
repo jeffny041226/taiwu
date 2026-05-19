@@ -3,8 +3,10 @@ import type { Action } from "./types";
 import {
   getRoom, getAllRooms, createRoom, joinRoom, setCrickets, startBattle,
   roundEnd, nextRound, setAction, bothActionsReady,
-  addScore, finishRoom, scheduleCleanup, validateRoomCode, generateRoomCode,
+  addScore, finishRoom, scheduleCleanup, cancelScheduledCleanup,
+  validateRoomCode, generateRoomCode,
   clearSelectionTimer, enqueueMatch, dequeueMatch, dequeueMatchByWs, getMatchQueueLength,
+  resetBattleForRematch,
 } from "./room-manager";
 import { resolveRound, validateCricketCount } from "./battle-resolver";
 import { aiChooseAction, createAIPlayer, createAICrickets } from "./ai-opponent";
@@ -583,6 +585,28 @@ export function handleMessage(ws: WebSocket, rawData: Buffer): void {
           scheduleCleanup(roomId);
         }
       }
+      break;
+    }
+
+    case "battle:rematch": {
+      const roomId = payload.roomId as string;
+      const room = getRoom(roomId);
+      if (!room) { send(ws, "room:error", { message: "房间不存在" }); return; }
+      if (!room.isPractice) { send(ws, "room:error", { message: "仅训练模式支持" }); return; }
+      if (room.phase !== "finished") { send(ws, "room:error", { message: "当前不在结算阶段" }); return; }
+
+      // 取消待清理定时器，防止中途删房间
+      cancelScheduledCleanup(roomId);
+
+      // 重置战斗并直接开始
+      clearActionTimer(roomId);
+      resetBattleForRematch(room);
+
+      // 通知玩家新战斗开始
+      const uid = (ws as any).uid || payload.uid as string;
+      broadcast(roomId, "room:state", buildRoomState(room));
+      broadcastBattleData(room);
+      startPracticeLoop(roomId);
       break;
     }
 
