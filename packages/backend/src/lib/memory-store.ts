@@ -25,6 +25,24 @@ interface MemoryCricket {
 const store = new Map<string, MemoryCricket[]>();
 let nextId = 1;
 
+/** 内存抽奖次数存储 */
+const gachaChances = new Map<string, number>();
+
+export function memoryGetGachaChances(uid: string): number {
+  return gachaChances.get(uid) || 0;
+}
+
+export function memorySetGachaChances(uid: string, count: number): void {
+  gachaChances.set(uid, count);
+}
+
+export function memoryAddGachaChances(uid: string, delta: number): number {
+  const current = memoryGetGachaChances(uid);
+  const updated = current + delta;
+  gachaChances.set(uid, updated);
+  return updated;
+}
+
 export function memoryInsert(uid: string, records: Array<{ template_id: number; image_key: string | null }>): MemoryCricket[] {
   const existing = store.get(uid) || [];
   const now = new Date().toISOString();

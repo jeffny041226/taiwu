@@ -23,28 +23,80 @@ interface GachaResult {
 
 export default function MarketPage() {
   const [selectedCount, setSelectedCount] = useState<1 | 5 | 10>(1);
+  const [chances, setChances] = useState(0);
   const [isPulling, setIsPulling] = useState(false);
+  const [isPaying, setIsPaying] = useState(false);
   const [results, setResults] = useState<GachaResult[]>([]);
   const [showResults, setShowResults] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
 
-  // Auth init
+  // Auth init + load chances
   useEffect(() => {
     ensureAuth();
+    loadChances();
   }, []);
 
-  const handlePull = async () => {
-    if (isPulling) return;
-    setIsPulling(true);
-    setErrorMsg("");
+  const loadChances = async () => {
     try {
-      const data = await api.pullGacha(selectedCount);
-      setResults(data.results as GachaResult[]);
-      setShowResults(true);
+      const data = await api.getGachaChances();
+      setChances(data.chances);
+    } catch { /* ignore */ }
+  };
+
+  const handlePullOrBuy = async () => {
+    if (isPulling || isPaying) return;
+    setErrorMsg("");
+
+    // 次数足够 → 直接抽
+    if (chances >= selectedCount) {
+      setIsPulling(true);
+      try {
+        const data = await api.pullGacha(selectedCount);
+        setResults(data.results as GachaResult[]);
+        setShowResults(true);
+        setChances(c => c - selectedCount);
+      } catch (e: any) {
+        setErrorMsg(e.message || "抽笼失败");
+      } finally {
+        setIsPulling(false);
+      }
+      return;
+    }
+
+    // 次数不足 → 走支付
+    setIsPaying(true);
+    try {
+      const productKey = `gacha_${selectedCount}`;
+      // 1. 创建订单
+      const order = await api.createPayOrder(productKey);
+
+      if (order.mock) {
+        // Mock 模式 — 直接确认支付
+        const paid = await api.confirmPay(order.order_id);
+        if (paid.success) {
+          setChances(paid.chances);
+          setErrorMsg("支付成功，开始抽笼...");
+          // 支付成功 → 自动抽
+          const data = await api.pullGacha(selectedCount);
+          setResults(data.results as GachaResult[]);
+          setShowResults(true);
+          setChances(c => c - selectedCount);
+          setErrorMsg("");
+        }
+      } else if (order.mweb_url) {
+        // 真实 H5 支付 — 跳转到微信
+        window.location.href = order.mweb_url;
+      } else {
+        setErrorMsg("支付功能暂未开通");
+      }
     } catch (e: any) {
-      setErrorMsg(e.message || "抽笼失败");
+      if (e.message?.includes("402") || e.message?.includes("不足")) {
+        setErrorMsg("抽奖次数不足");
+      } else {
+        setErrorMsg("支付失败");
+      }
     } finally {
-      setIsPulling(false);
+      setIsPaying(false);
     }
   };
 
@@ -67,17 +119,23 @@ export default function MarketPage() {
         </div>
 
         {/* Right: Action Panel */}
-        <div className="w-1/2 flex flex-col items-center pt-16 px-2 gap-[14px]">
+        <div className="w-1/2 flex flex-col items-center pt-12 px-2 gap-[14px]">
+          {/* 剩余次数 */}
+          <div className="w-[175px] text-center mb-2">
+            <p className="text-[12px] text-[var(--color-text-muted)] font-[family-name:var(--font-noto-serif)]">剩余次数</p>
+            <p className="text-[28px] font-bold text-[var(--color-gold)] font-[family-name:var(--font-noto-serif)]">{chances}</p>
+          </div>
+
           {([1, 5, 10] as const).map((count) => (
             <button key={count} type="button" onClick={() => setSelectedCount(count)}
               className={selectedCount === count ? gachaBtnActive : gachaBtnInactive}>
-              开{count}笼
+              {chances >= count ? `开${count}笼` : `开${count}笼 ¥${count}`}
             </button>
           ))}
 
-          <button type="button" onClick={handlePull} disabled={isPulling}
+          <button type="button" onClick={handlePullOrBuy} disabled={isPulling || isPaying}
             className="w-[175px] h-[50px] rounded-lg border border-[var(--color-gold)] bg-gradient-to-b from-[rgba(197,160,89,0.15)] to-[rgba(20,14,10,0.9)] text-[18px] font-bold text-[var(--color-gold)] font-[family-name:var(--font-noto-serif)] hover:border-[var(--color-gold)]/70 active:scale-[0.98] transition-all disabled:opacity-50">
-            {isPulling ? "开笼中..." : "开笼！"}
+            {isPaying ? "支付中..." : isPulling ? "开笼中..." : chances >= selectedCount ? "开笼！" : `购买并开笼 ¥${selectedCount}`}
           </button>
 
           {errorMsg && <p className="text-[13px] text-red-400 font-[family-name:var(--font-noto-serif)]">{errorMsg}</p>}

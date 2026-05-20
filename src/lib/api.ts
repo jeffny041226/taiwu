@@ -6,8 +6,12 @@ import type { CricketTemplate } from "@taiwu/shared/types/cricket";
 const BASE_URL = "/api";
 
 function getAuthHeaders(): Record<string, string> {
-  const token = typeof window !== "undefined" ? localStorage.getItem("jwt") : null;
-  return token ? { Authorization: `Bearer ${token}` } : {};
+  const token = typeof window !== "undefined" ? localStorage.getItem("passport_token") : null;
+  const uid = typeof window !== "undefined" ? localStorage.getItem("uid") : null;
+  const headers: Record<string, string> = {};
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+  if (uid) headers["X-Passport-Uid"] = uid;
+  return headers;
 }
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
@@ -32,30 +36,23 @@ export interface UserCricketResponse {
 }
 
 export const api = {
-  /** 用户名+密码注册 */
-  authRegister: (username: string, password: string, nickName?: string) =>
-    request<{ token: string; uid: string; nickName: string }>("/auth/register", {
+  /** 发送短信验证码 */
+  authSendCode: (mobile: string) =>
+    request<{ success: boolean }>("/auth/send-code", {
       method: "POST",
-      body: JSON.stringify({ username, password, nickName }),
+      body: JSON.stringify({ mobile }),
     }),
 
-  /** 游客快速注册 */
-  authGuest: (nickName?: string) =>
-    request<{ token: string; uid: string; nickName: string }>("/auth/guest", {
-      method: "POST",
-      body: JSON.stringify({ nickName }),
-    }),
-
-  /** 用户名+密码登录 */
-  authLogin: (username: string, password: string) =>
+  /** 验证码登录 */
+  authLoginWithCode: (mobile: string, code: string) =>
     request<{ token: string; uid: string; nickName: string }>("/auth/login", {
       method: "POST",
-      body: JSON.stringify({ username, password }),
+      body: JSON.stringify({ mobile, code }),
     }),
 
-  /** JWT token 登录（验证已有 token） */
-  authLoginToken: (token: string) =>
-    request<{ uid: string; nickName: string }>("/auth/login-token", {
+  /** 验证 Passport Token */
+  authVerifyToken: (token: string) =>
+    request<{ uid: string; nickName: string }>("/auth/verify", {
       method: "POST",
       body: JSON.stringify({ token }),
     }),
@@ -79,12 +76,32 @@ export const api = {
       body: JSON.stringify({ cricketId }),
     }),
 
+  /** 获取抽奖次数 */
+  getGachaChances: () => request<{ chances: number }>("/gacha/chances"),
+
   /** 抽笼 */
   pullGacha: (count: 1 | 5 | 10) =>
     request<{ results: UserCricketResponse[]; count: number }>("/gacha/pull", {
       method: "POST",
       body: JSON.stringify({ count }),
     }),
+
+  /** 创建支付订单 */
+  createPayOrder: (product: string) =>
+    request<{ success: boolean; order_id: string; mock: boolean; mweb_url: string | null }>("/pay/create", {
+      method: "POST",
+      body: JSON.stringify({ product }),
+    }),
+
+  /** 确认支付（mock 模式） */
+  confirmPay: (orderId: string) =>
+    request<{ success: boolean; chances: number; dup?: boolean }>("/pay/confirm", {
+      method: "POST",
+      body: JSON.stringify({ order_id: orderId }),
+    }),
+
+  /** 查询支付状态 */
+  payStatus: (orderId: string) => request<{ paid: boolean; chances: number }>(`/pay/status?order_id=${orderId}`),
 
   /** 校验房间 */
   checkRoom: (roomId: string) => request<{ exists: boolean; phase: string }>(`/room/${roomId}`),

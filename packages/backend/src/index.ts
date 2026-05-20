@@ -1,18 +1,20 @@
 import express from "express";
 import { createServer } from "http";
 import { WebSocketServer, WebSocket } from "ws";
-import jwt from "jsonwebtoken";
 
-import { BACKEND_PORT, JWT_SECRET } from "./config/env";
+import { BACKEND_PORT } from "./config/env";
 import { corsMiddleware } from "./middleware/cors";
 import { errorHandler } from "./middleware/error-handler";
+import { tokenCache } from "./middleware/auth";
 import { authRouter } from "./routes/auth";
 import { userRouter } from "./routes/user";
 import { cricketsRouter } from "./routes/crickets";
 import { gachaRouter } from "./routes/gacha";
 import { roomRouter } from "./routes/room";
+import { payRouter } from "./routes/pay";
 import { handleMessage, handleClose } from "./ws/handler";
 import { getAllRooms, finishRoom, scheduleCleanup } from "./ws/room-manager";
+import { passportService } from "./services/passport";
 
 const app = express();
 
@@ -25,6 +27,7 @@ app.use("/api/user", userRouter);
 app.use("/api/crickets", cricketsRouter);
 app.use("/api/gacha", gachaRouter);
 app.use("/api/room", roomRouter);
+app.use("/api/pay", payRouter);
 
 app.use(errorHandler);
 
@@ -38,26 +41,56 @@ server.on("upgrade", (request, socket, head) => {
   const url = new URL(request.url || "", `http://${request.headers.host}`);
 
   if (url.pathname === "/ws/battle") {
-    // JWT auth on upgrade
     const token = url.searchParams.get("token");
-    let decoded: { uid: string; nickName: string } | null = null;
-    if (token) {
-      try {
-        decoded = jwt.verify(token, JWT_SECRET) as { uid: string; nickName: string };
-      } catch {
-        socket.write("HTTP/1.1 401 Unauthorized\r\r\n\r\n");
+
+    const handleUpgrade = (decoded: { uid: string; nickName: string } | null) => {
+      wss.handleUpgrade(request, socket, head, (ws) => {
+        if (decoded) {
+          (ws as any).uid = decoded.uid;
+          (ws as any).nickName = decoded.nickName;
+        }
+        wss.emit("connection", ws, request);
+      });
+    };
+
+    if (!token) {
+      handleUpgrade(null);
+      return;
+    }
+
+    // 本地 token（万能验证码产生）
+    if (token.startsWith("local-")) {
+      const cached = tokenCache.get(token);
+      handleUpgrade(cached ? { uid: cached.uid, nickName: cached.nickName } : null);
+      return;
+    }
+
+    // 检查缓存
+    const cached = tokenCache.get(token);
+    if (cached) {
+      handleUpgrade({ uid: cached.uid, nickName: cached.nickName });
+      return;
+    }
+
+    // 异步验证 Passport Token
+    passportService.verifyToken(token).then(verified => {
+      if (!verified) {
+        socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n");
         socket.destroy();
         return;
       }
-    }
-
-    wss.handleUpgrade(request, socket, head, (ws) => {
-      // Attach auth info to ws
-      if (decoded) {
-        (ws as any).uid = decoded.uid;
-        (ws as any).nickName = decoded.nickName;
-      }
-      wss.emit("connection", ws, request);
+      // 异步获取用户信息
+      passportService.getTokenInfo(token).then(info => {
+        const nickName = info?.nickName || "";
+        tokenCache.set(token, { uid: verified.uid, nickName });
+        handleUpgrade({ uid: verified.uid, nickName });
+      }).catch(() => {
+        tokenCache.set(token, { uid: verified.uid, nickName: "" });
+        handleUpgrade({ uid: verified.uid, nickName: "" });
+      });
+    }).catch(() => {
+      socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n");
+      socket.destroy();
     });
   } else {
     socket.destroy();

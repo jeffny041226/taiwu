@@ -1,179 +1,170 @@
 import { Router } from "express";
-import jwt from "jsonwebtoken";
-import bcrypt from "bcryptjs";
 import { getSupabase } from "../db/supabase";
-import { JWT_SECRET } from "../config/env";
 import { CRICKET_TEMPLATES } from "@taiwu/shared/data/cricket-templates";
 import { generateVariant } from "@taiwu/shared/lib/cricket-utils";
-import { memoryInsert } from "../lib/memory-store";
+import { memoryInsert, memorySetGachaChances } from "../lib/memory-store";
+import { passportService } from "../services/passport";
+import { tokenCache } from "../middleware/auth";
 
 export const authRouter = Router();
 
-/** POST /api/auth/register — 用户名+密码注册 */
-authRouter.post("/register", async (req, res) => {
-  const { username, password, nickName } = req.body as {
-    username: string;
-    password: string;
-    nickName?: string;
-  };
+/** POST /api/auth/send-code — 发送短信验证码 */
+authRouter.post("/send-code", async (req, res) => {
+  const { mobile } = req.body as { mobile: string };
 
-  if (!username || !password) {
-    res.status(400).json({ error: "用户名和密码不能为空" });
+  if (!mobile) {
+    res.status(400).json({ error: "请输入手机号" });
     return;
   }
 
-  if (username.length > 50) {
-    res.status(400).json({ error: "用户名过长（最多50字符）" });
+  if (!/^1\d{10}$/.test(mobile)) {
+    res.status(400).json({ error: "手机号格式不正确" });
     return;
   }
-
-  if (password.length < 6) {
-    res.status(400).json({ error: "密码至少6位" });
-    return;
-  }
-
-  const sb = getSupabase();
-  if (sb) {
-    // Check username uniqueness
-    const { data: existing } = await sb.from("users").select("uid").eq("username", username).limit(1);
-    if (existing && existing.length > 0) {
-      res.status(409).json({ error: "用户名已被占用" });
-      return;
-    }
-  }
-
-  const uid = `user-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-  const name = nickName || `玩家${Math.floor(Math.random() * 9000 + 1000)}`;
-  const passwordHash = await bcrypt.hash(password, 10);
-
-  if (sb) {
-    const { error } = await sb.from("users").insert({
-      uid,
-      nick_name: name,
-      username,
-      password_hash: passwordHash,
-      token: uid,
-      avatar: "/assets/avatars/avatar-default.png",
-    });
-    if (error) {
-      res.status(500).json({ error: error.message });
-      return;
-    }
-  }
-
-  // 新用户赠送 3 只起始蛐蛐（优先写入 Supabase）
-  const starterIds = [1, 2, 3];
-  if (sb) {
-    const inserts = starterIds.map(tid => {
-      const template = CRICKET_TEMPLATES.find(t => t.id === tid);
-      const v = template ? generateVariant(template) : { attack: 10, defense: 10, speed: 10, maxHp: 100, maxStamina: 100, spiritBase: 100 };
-      return { uid, template_id: tid, attack: v.attack, defense: v.defense, speed: v.speed, max_hp: v.maxHp, max_stamina: v.maxStamina, spirit_base: v.spiritBase };
-    });
-    const { error } = await sb.from("user_crickets").insert(inserts).select();
-    if (error) console.error("[Auth] 插入起始蛐蛐失败:", error.message);
-  }
-  const starterRecords = starterIds.map(id => ({ template_id: id, image_key: null }));
-  memoryInsert(uid, starterRecords);
-
-  const token = jwt.sign({ uid, nickName: name, username }, JWT_SECRET, { expiresIn: "7d" });
-  res.json({ token, uid, nickName: name });
-});
-
-/** POST /api/auth/guest — 游客快速注册 */
-authRouter.post("/guest", async (req, res) => {
-  const { nickName } = req.body as { nickName?: string };
-  const uid = `user-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-  const name = nickName || `玩家${Math.floor(Math.random() * 9000 + 1000)}`;
-
-  console.log("[Auth] 游客注册: uid=" + uid + ", sb=" + (!!getSupabase()));
-  const sb = getSupabase();
-  if (sb) {
-    const { error } = await sb.from("users").insert({
-      uid,
-      nick_name: name,
-      username: null,
-      password_hash: null,
-      token: uid,
-      avatar: "/assets/avatars/avatar-default.png",
-    });
-    if (error) {
-      res.status(500).json({ error: error.message });
-      return;
-    }
-  }
-
-  // 新用户赠送 3 只起始蛐蛐（优先写入 Supabase）
-  const starterIds = [1, 2, 3];
-  if (sb) {
-    const inserts = starterIds.map(tid => {
-      const template = CRICKET_TEMPLATES.find(t => t.id === tid);
-      const v = template ? generateVariant(template) : { attack: 10, defense: 10, speed: 10, maxHp: 100, maxStamina: 100, spiritBase: 100 };
-      return { uid, template_id: tid, attack: v.attack, defense: v.defense, speed: v.speed, max_hp: v.maxHp, max_stamina: v.maxStamina, spirit_base: v.spiritBase };
-    });
-    const { error } = await sb.from("user_crickets").insert(inserts).select();
-    if (error) console.error("[Auth] 插入起始蛐蛐失败:", error.message);
-  }
-  // 同步写入内存存储
-  const starterRecords = starterIds.map(id => ({ template_id: id, image_key: null }));
-  memoryInsert(uid, starterRecords);
-
-  const token = jwt.sign({ uid, nickName: name }, JWT_SECRET, { expiresIn: "7d" });
-  res.json({ token, uid, nickName: name });
-});
-
-/** POST /api/auth/login — 用户名+密码登录 */
-authRouter.post("/login", async (req, res) => {
-  const { username, password } = req.body as {
-    username: string;
-    password: string;
-  };
-
-  if (!username || !password) {
-    res.status(400).json({ error: "用户名和密码不能为空" });
-    return;
-  }
-
-  const sb = getSupabase();
-  if (!sb) {
-    // No DB — cannot verify credentials
-    res.status(503).json({ error: "服务暂不可用（数据库未配置）" });
-    return;
-  }
-
-  const { data: user } = await sb.from("users").select("*").eq("username", username).single();
-  if (!user || !user.password_hash) {
-    res.status(401).json({ error: "用户名或密码错误" });
-    return;
-  }
-
-  const match = await bcrypt.compare(password, user.password_hash);
-  if (!match) {
-    res.status(401).json({ error: "用户名或密码错误" });
-    return;
-  }
-
-  const token = jwt.sign({ uid: user.uid, nickName: user.nick_name, username }, JWT_SECRET, { expiresIn: "7d" });
-  res.json({ token, uid: user.uid, nickName: user.nick_name });
-});
-
-/** POST /api/auth/login-token — JWT token 登录 */
-authRouter.post("/login-token", async (req, res) => {
-  const { token } = req.body as { token: string };
 
   try {
-    const decoded = jwt.verify(token, JWT_SECRET) as { uid: string; nickName: string; username?: string };
-    const sb = getSupabase();
-    if (sb) {
-      const { data } = await sb.from("users").select("*").eq("uid", decoded.uid).single();
-      if (!data) {
-        res.json({ uid: decoded.uid, nickName: decoded.nickName, username: decoded.username });
-        return;
-      }
-      res.json({ uid: data.uid, nickName: data.nick_name, username: data.username || undefined });
-    } else {
-      res.json({ uid: decoded.uid, nickName: decoded.nickName, username: decoded.username });
-    }
-  } catch {
-    res.status(401).json({ error: "Invalid token" });
+    const clientIp = (req.headers["x-forwarded-for"] as string) || req.socket.remoteAddress || "127.0.0.1";
+    await passportService.getMobileCode(mobile, clientIp);
+    res.json({ success: true });
+  } catch (e: any) {
+    // Passport API 不可用时（如外网环境），仍返回成功，前端可用万能验证码 666666 登录
+    console.warn("[Auth] 发送验证码失败（Passport API 不可用）:", e.message);
+    res.json({ success: true, mock: true });
   }
+});
+
+/** POST /api/auth/login — 验证码登录 */
+authRouter.post("/login", async (req, res) => {
+  const { mobile, code } = req.body as { mobile: string; code: string };
+
+  if (!mobile || !code) {
+    res.status(400).json({ error: "手机号和验证码不能为空" });
+    return;
+  }
+
+  if (!/^1\d{10}$/.test(mobile)) {
+    res.status(400).json({ error: "手机号格式不正确" });
+    return;
+  }
+
+  if (code.length !== 6) {
+    res.status(400).json({ error: "验证码为6位" });
+    return;
+  }
+
+  // 万能验证码：测试环境直接跳过 Passport 调用
+  let uid: string;
+  let nickName: string;
+  let passportToken: string;
+  let avatar: string | undefined;
+
+  if (code === "666666") {
+    // 万能验证码 — 本地生成用户身份
+    uid = `shanhai-${mobile}`;
+    nickName = `玩家${mobile.slice(-4)}`;
+    passportToken = `local-${mobile}-${Date.now()}`;
+    console.log("[Auth] 万能验证码登录: mobile=" + mobile.slice(0, 3) + "****");
+  } else {
+    // 调用 Passport API 登录
+    try {
+      const result = await passportService.mobileCodeLogin(mobile, code);
+      passportToken = result.token;
+      uid = result.uid;
+      nickName = result.nickName || `玩家${mobile.slice(-4)}`;
+      avatar = result.avatar;
+    } catch (e: any) {
+      res.status(401).json({ error: e.message || "登录失败" });
+      return;
+    }
+  }
+
+  // 查找或创建本地用户
+  const sb = getSupabase();
+  let existingUser: any = null;
+  if (sb) {
+    const { data } = await sb.from("users").select("*").eq("uid", uid).single();
+    existingUser = data;
+    if (!data) {
+      // 新用户 → 创建记录 + 赠送起始蛐蛐
+      const { error } = await sb.from("users").insert({
+        uid,
+        nick_name: nickName,
+        username: null,
+        password_hash: null,
+        token: uid,
+        gacha_chances: 3,
+        avatar: avatar || "/assets/avatars/avatar-default.png",
+      });
+      if (error) {
+        console.error("[Auth] 创建用户失败:", error.message);
+      }
+
+      // 赠送 3 只起始蛐蛐
+      const starterIds = [1, 2, 3];
+      const inserts = starterIds.map(tid => {
+        const template = CRICKET_TEMPLATES.find(t => t.id === tid);
+        const v = template ? generateVariant(template) : { attack: 10, defense: 10, speed: 10, maxHp: 100, maxStamina: 100, spiritBase: 100 };
+        return { uid, template_id: tid, attack: v.attack, defense: v.defense, speed: v.speed, max_hp: v.maxHp, max_stamina: v.maxStamina, spirit_base: v.spiritBase };
+      });
+      const { error: insertError } = await sb.from("user_crickets").insert(inserts).select();
+      if (insertError) console.error("[Auth] 插入起始蛐蛐失败:", insertError.message);
+    } else {
+      nickName = data.nick_name || nickName;
+    }
+  } else {
+    // 无 DB — 写入内存存储
+    const starterIds = [1, 2, 3];
+    const starterRecords = starterIds.map(id => ({ template_id: id, image_key: null }));
+    memoryInsert(uid, starterRecords);
+    memorySetGachaChances(uid, 3);
+  }
+
+  // 缓存 passportToken → uid 到内存
+  tokenCache.set(passportToken, { uid, nickName });
+
+  res.json({ token: passportToken, uid, nickName: nickName });
+});
+
+/** POST /api/auth/verify — 验证 Token 有效性 */
+authRouter.post("/verify", async (req, res) => {
+  const { token } = req.body as { token: string };
+
+  if (!token) {
+    res.status(400).json({ error: "Token不能为空" });
+    return;
+  }
+
+  // 万能验证码产生的本地 token
+  if (token.startsWith("local-")) {
+    const cached = tokenCache.get(token);
+    if (cached) {
+      res.json({ uid: cached.uid, nickName: cached.nickName });
+      return;
+    }
+  }
+
+  // 检查缓存
+  const cached = tokenCache.get(token);
+  if (cached) {
+    // 刷新缓存 TTL
+    tokenCache.set(token, cached);
+    res.json({ uid: cached.uid, nickName: cached.nickName });
+    return;
+  }
+
+  // 调用 Passport 验证
+  const verified = await passportService.verifyToken(token);
+  if (!verified) {
+    res.status(401).json({ error: "Token无效或已过期" });
+    return;
+  }
+
+  // 获取用户信息（可选）
+  const info = await passportService.getTokenInfo(token);
+  const nickName = info?.nickName || "";
+
+  // 缓存
+  tokenCache.set(token, { uid: verified.uid, nickName });
+
+  res.json({ uid: verified.uid, nickName });
 });

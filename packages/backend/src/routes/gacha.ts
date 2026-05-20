@@ -4,13 +4,20 @@ import { getSupabase } from "../db/supabase";
 import { CRICKET_TEMPLATES } from "@taiwu/shared/data/cricket-templates";
 import { pullMultiple } from "@taiwu/shared/lib/gacha-engine";
 import { generateVariant } from "@taiwu/shared/lib/cricket-utils";
-import { memoryInsert } from "../lib/memory-store";
+import { memoryInsert, memoryGetGachaChances, memorySetGachaChances } from "../lib/memory-store";
 
 export const gachaRouter = Router();
 
 gachaRouter.post("/pull", authMiddleware, async (req, res) => {
   const { count } = req.body as { count: 1 | 5 | 10 };
   const uid = req.user!.uid;
+
+  // 检查并消耗抽奖次数
+  const chances = await getGachaChances(uid);
+  if (chances < count) {
+    res.status(402).json({ error: "抽奖次数不足", chances, needed: count });
+    return;
+  }
 
   const activeTemplates = CRICKET_TEMPLATES.filter(t => t.isActive);
   const pulled = pullMultiple(activeTemplates, count);
@@ -97,4 +104,37 @@ gachaRouter.post("/pull", authMiddleware, async (req, res) => {
   } else {
     saveToMemory();
   }
+
+  // 扣除抽奖次数
+  await deductGachaChances(uid, count);
 });
+
+/** GET /api/gacha/chances — 获取抽奖次数 */
+gachaRouter.get("/chances", authMiddleware, async (req, res) => {
+  const uid = req.user!.uid;
+  const chances = await getGachaChances(uid);
+  res.json({ chances });
+});
+
+// ── 辅助: 抽奖次数 CRUD ──
+
+async function getGachaChances(uid: string): Promise<number> {
+  const sb = getSupabase();
+  if (sb) {
+    const { data } = await sb.from("users").select("gacha_chances").eq("uid", uid).single();
+    return data?.gacha_chances || 0;
+  }
+  return memoryGetGachaChances(uid);
+}
+
+async function deductGachaChances(uid: string, count: number): Promise<void> {
+  const sb = getSupabase();
+  if (sb) {
+    const { data } = await sb.from("users").select("gacha_chances").eq("uid", uid).single();
+    const updated = Math.max(0, (data?.gacha_chances || 0) - count);
+    await sb.from("users").update({ gacha_chances: updated }).eq("uid", uid);
+    return;
+  }
+  const current = memoryGetGachaChances(uid);
+  memorySetGachaChances(uid, Math.max(0, current - count));
+}
