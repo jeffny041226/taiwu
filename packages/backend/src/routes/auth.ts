@@ -2,7 +2,7 @@ import { Router } from "express";
 import { getSupabase } from "../db/supabase";
 import { CRICKET_TEMPLATES } from "@taiwu/shared/data/cricket-templates";
 import { generateVariant } from "@taiwu/shared/lib/cricket-utils";
-import { memoryInsert, memorySetGachaChances } from "../lib/memory-store";
+import { memoryInsert } from "../lib/memory-store";
 import { passportService } from "../services/passport";
 import { tokenCache } from "../middleware/auth";
 
@@ -27,9 +27,15 @@ authRouter.post("/send-code", async (req, res) => {
     await passportService.getMobileCode(mobile, clientIp);
     res.json({ success: true });
   } catch (e: any) {
-    // Passport API 不可用时（如外网环境），仍返回成功，前端可用万能验证码 666666 登录
-    console.warn("[Auth] 发送验证码失败（Passport API 不可用）:", e.message);
-    res.json({ success: true, mock: true });
+    // 网络错误（Passport API 不可达）→ mock fallback，前端用万能验证码
+    if (e.message && (e.message.includes("fetch") || e.message.includes("ENOTFOUND") || e.message.includes("ECONNREFUSED") || e.message.includes("network") || e.message.includes("econn"))) {
+      console.warn("[Auth] 发送验证码失败（Passport API 不可用）:", e.message);
+      res.json({ success: true, mock: true });
+    } else {
+      // Passport 业务错误（达上限、手机号无效等）→ 透传真实错误
+      console.warn("[Auth] 发送验证码业务错误:", e.message);
+      res.status(400).json({ error: e.message || "发送验证码失败" });
+    }
   }
 });
 
@@ -52,30 +58,21 @@ authRouter.post("/login", async (req, res) => {
     return;
   }
 
-  // 万能验证码：测试环境直接跳过 Passport 调用
+  // 万能验证码和真实验证码都走 Passport API 登录
   let uid: string;
   let nickName: string;
   let passportToken: string;
   let avatar: string | undefined;
 
-  if (code === "666666") {
-    // 万能验证码 — 本地生成用户身份
-    uid = `shanhai-${mobile}`;
-    nickName = `玩家${mobile.slice(-4)}`;
-    passportToken = `local-${mobile}-${Date.now()}`;
-    console.log("[Auth] 万能验证码登录: mobile=" + mobile.slice(0, 3) + "****");
-  } else {
-    // 调用 Passport API 登录
-    try {
-      const result = await passportService.mobileCodeLogin(mobile, code);
-      passportToken = result.token;
-      uid = result.uid;
-      nickName = result.nickName || `玩家${mobile.slice(-4)}`;
-      avatar = result.avatar;
-    } catch (e: any) {
-      res.status(401).json({ error: e.message || "登录失败" });
-      return;
-    }
+  try {
+    const result = await passportService.mobileCodeLogin(mobile, code);
+    passportToken = result.token;
+    uid = result.uid;
+    nickName = result.nickName || `玩家${mobile.slice(-4)}`;
+    avatar = result.avatar;
+  } catch (e: any) {
+    res.status(401).json({ error: e.message || "登录失败" });
+    return;
   }
 
   // 查找或创建本地用户
@@ -92,7 +89,6 @@ authRouter.post("/login", async (req, res) => {
         username: null,
         password_hash: null,
         token: uid,
-        gacha_chances: 3,
         avatar: avatar || "/assets/avatars/avatar-default.png",
       });
       if (error) {
@@ -116,7 +112,6 @@ authRouter.post("/login", async (req, res) => {
     const starterIds = [1, 2, 3];
     const starterRecords = starterIds.map(id => ({ template_id: id, image_key: null }));
     memoryInsert(uid, starterRecords);
-    memorySetGachaChances(uid, 3);
   }
 
   // 缓存 passportToken → uid 到内存

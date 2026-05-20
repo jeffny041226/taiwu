@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 项目状态
 
-古风蛐蛐实时对战游戏，pnpm workspace monorepo: Next.js 16 前端 + Express/WebSocket 合并后端(port 4000) + shared 共享包 + Supabase。素材通过脚本自动生成占位图，蛐蛐图片已上传 Supabase Storage 由 API 下发。
+古风蛐蛐实时对战游戏，pnpm workspace monorepo: Next.js 16 前端 + Express/WebSocket 合并后端(port 4000) + shared 共享包 + Supabase。素材通过脚本自动生成占位图，蛐蛐图片已上传 Supabase Storage 由 API 下发。鉴权使用山海 Passport（手机号+短信验证码），支付接入微信支付 H5 服务商模式。
 
 ## 命令
 
@@ -25,14 +25,14 @@ npx tsx scripts/gen-all.ts                # 重新生成本地素材占位图
 ## 架构要点
 
 - **pnpm workspace monorepo** — 3 个包: 根(Next.js 前端)、`packages/backend`(Express+WS)、`packages/shared`(类型+逻辑)
-- **合并 HTTP+WS 后端** — 单进程 port 4000，Express 处理 REST `/api/*`，原生 `ws` 库 `noServer` 模式处理 `/ws/battle` 升级。JWT 验证在 WS 升级时通过 query param `token` 完成
-- **鉴权系统** — 4 个端点: `POST /api/auth/register`(用户名+密码)、`POST /api/auth/guest`(游客)、`POST /api/auth/login`(用户名+密码)、`POST /api/auth/login-token`(JWT验证)。密码用 bcryptjs hash，JWT 7天有效。前端 `ensureAuth()` 不再自动注册——无 JWT 时返回 null，受保护页面跳 `/auth`
-- **Supabase 懒加载** — `getSupabase()` 返回 `SupabaseClient | null`；无 DB 时各路由走内存 fallback (`memory-store.ts`)。`requireSupabase()` 抛异常，仅 login 端点用（用户名登录需要 DB）
-- **蛐蛐图片云端下发** — 图片上传到 Supabase Storage 公开 bucket `cricket-images`，`image_key` 列存公开 URL，通过 `/api/crickets/templates` 接口下发。前端不再依赖 `getCricketThumb()` 硬编码本地路径
-- **前端 7 个页面路由** — `/`(大厅) `/auth`(登录注册) `/market`(虫市) `/backpack`(背包) `/room/[roomId]`(房间) `/battle/[roomId]`(战斗) `/matchmake`(匹配对战)。全部 `use client`
+- **合并 HTTP+WS 后端** — 单进程 port 4000，Express 处理 REST `/api/*`，原生 `ws` 库 `noServer` 模式处理 `/ws/battle` 升级。Passport Token 验证在 WS 升级时通过 query param `token` 完成
+- **鉴权系统 — 山海 Passport** — 4 个端点: `POST /api/auth/send-code`(发短信)、`POST /api/auth/login`(验证码登录)、`POST /api/auth/verify`(Token验证)。万能验证码 `666666` 测试环境跳过 Passport。Token 有 5 分钟内存缓存。前端 `ensureAuth()` 返回 null 时受保护页面跳 `/auth`。localStorage 存 `passport_token` / `uid` / `nickName`
+- **微信支付（服务商模式 H5）** — Mock/Real 双模式：配置占位符时自动走 mock（`confirmPay` 直接加次数），填入真实证书后走微信 V3 API（下单/回调/查单）。Mock 模式前端有支付确认弹窗
+- **Supabase 懒加载** — `getSupabase()` 返回 `SupabaseClient | null`；无 DB 时各路由走内存 fallback (`memory-store.ts`)。`requireSupabase()` 抛异常，仅需 DB 的端点用
+- **蛐蛐图片云端下发** — 图片上传到 Supabase Storage 公开 bucket `cricket-images`，`image_key` 列存公开 URL，通过 `/api/crickets/templates` 接口下发。前端用 API 返回的 `imageKey`，不再依赖硬编码本地路径
+- **前端页面路由** — `/`(大厅) `/auth`(登录) `/market`(虫市) `/backpack`(背包) `/room/[roomId]`(房间) `/battle/[roomId]`(战斗) `/matchmake`(匹配对战)。全部 `use client`
 - **战斗引擎共享** — 纯函数在 `packages/shared/src/lib/battle-calc.ts`，前后端统一调用
 - **游戏配置集中化** — 所有魔法数字在 `packages/shared/src/config/game.ts`，含 BATTLE_MODE(env 可覆盖: tag_team/best_of_3)
-- **dotenv** — 后端通过 `packages/backend/src/config/env.ts` 加载 `.env`，不在 index.ts 入口处调用
 
 ### 项目结构
 
@@ -41,18 +41,22 @@ packages/backend/src/
   index.ts              # 合并 HTTP+WS 入口 (port 4000)
   config/env.ts         # dotenv 加载 + 环境变量导出
   db/supabase.ts        # 懒加载 Supabase 客户端 (getSupabase/requireSupabase)
-  lib/memory-store.ts   # 无 DB 时的内存蛐蛐存储 (重启丢失)
-  middleware/auth.ts    # JWT Bearer 验证 → req.user
+  lib/memory-store.ts   # 无 DB 时的内存蛐蛐/次数存储 (重启丢失)
+  middleware/auth.ts    # Passport Token Bearer 验证 → req.user (5min内存缓存)
   middleware/cors.ts    # CORS 中间件
   middleware/error-handler.ts  # 统一错误处理
-  routes/auth.ts        # 4 个鉴权端点 (register/guest/login/login-token)
+  services/passport.ts  # 山海 Passport API 客户端 (验证码/登录/校验)
+  services/wechat-pay.ts  # 微信支付 V3 API 客户端 (签名/下单/回调解密/查单)
+  routes/auth.ts        # POST send-code / login / verify
   routes/crickets.ts    # GET /, GET /templates, POST /release
-  routes/gacha.ts       # POST /pull (1/5/10连)
+  routes/gacha.ts       # POST /pull (1/5/10连), GET /chances
+  routes/pay.ts         # POST create/confirm/notify, GET status/chances
   routes/user.ts        # GET /profile, GET /stats
   routes/room.ts        # GET /:roomId
   ws/handler.ts         # 12 种 WS 消息路由 (含心跳、匹配、超时)
-  ws/room-manager.ts    # 房间 CRUD + 状态机
+  ws/room-manager.ts    # 房间 CRUD + 状态机 + 匹配队列
   ws/battle-resolver.ts # 回合结算 (调用 shared battle-calc)
+  ws/cricket-resolver.ts # 蛐蛐数据解析 (DB → BattleCricket)
   ws/ai-opponent.ts     # AI 加权反制出招
 
 packages/shared/src/
@@ -62,12 +66,12 @@ packages/shared/src/
   lib/gacha-engine.ts   # pullOne/pullMultiple/simulateDistribution
   lib/room-code.ts      # generateRoomCode/validateRoomCode
   lib/cricket-utils.ts  # 品质/特性/属性显示工具
-  data/cricket-templates.ts  # 20只蛐蛐硬编码数据 + getCricketThumb(仅无DB时用)
+  data/cricket-templates.ts  # 20只蛐蛐硬编码数据 (无DB时fallback)
 
 src/app/                # Next.js 前端页面 (7个路由)
 src/lib/
-  auth.ts               # ensureAuth(返回null若无JWT)/register/login/guestRegister/logout/clearAuth
-  api.ts                # HTTP API 客户端 (4 auth + gacha/crickets/user/room)
+  auth.ts               # ensureAuth/sendCode/loginWithCode/logout (passport_token)
+  api.ts                # HTTP API 客户端 (auth/gacha/pay/crickets/user/room)
   ws-client.ts          # WSClient 类 (心跳+重连+事件派发)
 src/hooks/
   useWebSocket.ts       # React hook: send/on/off 事件模式
@@ -75,7 +79,7 @@ src/hooks/
 src/components/         # UI + layout + game 组件
 
 db/
-  schema.sql            # 3表DDL (users 含 username/password_hash, cricket_templates, user_crickets)
+  schema.sql            # 3表DDL (users, cricket_templates, user_crickets)
   seed.sql              # 20只蛐蛐种子数据
 scripts/
   upload-cricket-images.ts  # 上传图片到 Supabase Storage + 更新DB
@@ -85,13 +89,13 @@ scripts/
 ### 鉴权流程
 
 ```
-注册: POST /api/auth/register {username,password,nickName?} → bcrypt.hash → INSERT users → sign JWT → {token,uid,nickName}
-游客: POST /api/auth/guest {nickName?} → gen uid → INSERT users(username=null) → sign JWT → {token,uid,nickName}
-登录: POST /api/auth/login {username,password} → SELECT users → bcrypt.compare → sign JWT → {token,uid,nickName}
-验证: POST /api/auth/login-token {token} → jwt.verify → SELECT users → {uid,nickName}
+发验证码: POST /api/auth/send-code {mobile} → Passport getMobileCode (GET) → {success}
+登录:     POST /api/auth/login {mobile,code} → code=666666 生成本地身份 shanhai-{mobile}
+           或 Passport mobileCodeLogin (POST) → 查找/创建本地用户 → 缓存 token → {token,uid,nickName}
+验证:     POST /api/auth/verify {token} → 内存缓存 → Passport verifyToken (GET) → {uid,nickName}
 
-前端: ensureAuth() → check localStorage JWT → api.authLoginToken验证 → 无效则返回null(跳/auth)
-WS:   升级时 ?token=xxx → jwt.verify → ws.uid/ws.nickName
+前端:     ensureAuth() → check localStorage passport_token → api.authVerifyToken → 无效则返回null(跳/auth)
+WS:       升级时 ?token=xxx → 本地token? → 内存缓存? → passportService.verifyToken → ws.uid/ws.nickName
 ```
 
 ### WebSocket 消息协议
@@ -101,30 +105,40 @@ WS:   升级时 ?token=xxx → jwt.verify → ws.uid/ws.nickName
 | C→S | room:create / room:join / room:practice | 创建/加入/训练房间 |
 | C→S | room:matchmake / room:matchmake.cancel | 匹配/取消匹配 |
 | C→S | battle:ready / battle:action / battle:nextRound | 选蛐蛐/出招/下一局 |
+| C→S | battle:rematch | 训练模式再来一局 |
 | C→S | room:leave | 离开房间 |
 | S→C | room:created / room:joined / room:state | 房间状态 |
 | S→C | room:matched / room:matchmake.waiting / room:matchmake.timeout | 匹配结果 |
-| S→C | battle:roundResult / battle:roundWin / battle:gameOver | 战斗结算 |
+| S→C | battle:data / battle:roundResult / battle:roundWin / battle:gameOver | 战斗结算 |
+| S→C | battle:cricketChange | 换蛐蛐通知 |
 
 ### 战斗系统
 
-动作: heavy_strike / feint / block / chirp，克制关系：
-- heavy_strike 克 chirp (1.2x)、克 feint (1.1x)
-- feint 克 block (1.5x)、克 chirp (1.15x)
-- block 减伤 heavy_strike 60%、feint 40%
-- chirp 恢复斗性 (+10)
-
-特性: 6种 (fierce/swift/cunning/steadfast/tenacious/resonant)，在 `TRAIT_EFFECTS` 声明，`calcRoundResult` 应用。
-对战模式: BATTLE_MODE 环境变量控制 — `tag_team`(车轮战,默认) / `best_of_3`(三局两胜)
+动作: heavy_strike / feint / block / chirp，克制关系见 `COUNTER_MULTIPLIER`。
+特性: 6种 (fierce/swift/cunning/steadfast/tenacious/resonant)，在 `TRAIT_EFFECTS` 声明。
+对战模式: BATTLE_MODE — tag_team(车轮战,默认) / best_of_3(三局两胜)
 
 ### 数据流
 
 ```
-[抽笼] api.pullGacha → POST /api/gacha/pull → pullMultiple → INSERT user_crickets → 返回带 imageKey 的 template
-[背包] api.getCrickets → GET /api/crickets → SELECT user_crickets JOIN cricket_templates → 返回带 imageKey
-[模板] api.getTemplates → GET /api/crickets/templates → SELECT cricket_templates → 返回带 imageKey (云端URL)
-[组队] 选3只 → battle:ready(cricketIds) → WS → 双方ready → battle:selectionStart → 倒计时
-[对战] battle:action → WS → bothActionsReady → resolveRound → broadcast(roundResult/roundWin/gameOver)
+[登录]  sendCode → POST /auth/send-code → loginWithCode → POST /auth/login → 存 passport_token
+[抽笼]  api.pullGacha → POST /gacha/pull → pullMultiple → INSERT user_crickets → 返回带 imageKey
+[支付]  createPayOrder → POST /pay/create → mock:弹确认窗/real:跳h5_url → confirmPay/轮询payStatus → pullGacha
+[背包]  api.getCrickets → GET /crickets → SELECT user_crickets JOIN cricket_templates
+[组队]  选3只 → battle:ready(cricketIds) → WS → 双方ready → battle:selectionStart → 倒计时
+[对战]  battle:action → WS → bothActionsReady → resolveRound → broadcast(roundResult/roundWin/gameOver)
+```
+
+### 支付流程（Mock/Real 双模式）
+
+```
+Mock (WX_PAY_MOCK=true — 配置为占位符时自动启用):
+  购买 → createPayOrder → 弹出确认窗 → 点击确认 → confirmPay → 加次数 → 自动抽笼
+
+Real (WX_PAY_MOCK=false — 填入真实证书后):
+  购买 → createPayOrder → 后端调微信统一下单 → 返回h5_url
+  → 前端跳转h5_url → 微信拉起支付 → 支付完成微信回调notify_url
+  → 微信跳回/market?pay_order=xxx → 前端轮询payStatus → 成功则自动抽笼
 ```
 
 ## 设计基准
@@ -149,8 +163,11 @@ CSS 变量: `--color-bg-base`, `--color-gold`, `--color-text-primary/secondary/m
 
 ## 关键约定
 
-- 蛐蛐图片由 API 下发 `imageKey`(云端URL)，前端不用 `getCricketThumb()` 硬编码本地路径（仅作无DB时fallback）
+- 所有 Passport 接口由后端代理调用，前端不直接调 Passport
+- Passport API 不可用时（如外网环境），send-code 返回 `{success:true, mock:true}`，万能验证码 `666666` 可登录
+- 后端所有路由检查 `getSupabase()` — null 时走内存 fallback; `requireSupabase()` 抛异常
+- 前端 `ensureAuth()` 返回 null 时受保护页面跳 `/auth`
+- 蛐蛐图片由 API 下发 `imageKey`(云端URL)，前端不用硬编码本地路径
 - 游戏平衡参数通过 `@taiwu/shared/config/game` 导出常量，禁止魔法数字
 - 战斗计算用 `@taiwu/shared/lib/battle-calc` 纯函数，不依赖 React 状态
-- 后端所有路由检查 `getSupabase()` — null 时走内存 fallback; login 端点用 `requireSupabase()` 需要 DB
-- 前端 `ensureAuth()` 返回 null 时受保护页面跳 `/auth`; 游客模式通过 `/auth` 页面的"游客体验"入口
+- 新建用户默认赠送 3 只起始蛐蛐（template_id 1/2/3），不赠送抽奖次数

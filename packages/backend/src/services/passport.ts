@@ -3,6 +3,7 @@ import { PASSPORT_BASE_URL, PASSPORT_PLATFORM } from "../config/env";
 interface PassportResponse<T = unknown> {
   code: number;
   message?: string;
+  msg?: string;
   data?: T;
   token?: string;
   uid?: string;
@@ -40,7 +41,7 @@ class PassportService {
     const data: PassportResponse = await res.json();
 
     if (data.code !== 200) {
-      throw new Error(data.message || "发送验证码失败");
+      throw new Error(data.msg || "发送验证码失败");
     }
   }
 
@@ -68,15 +69,17 @@ class PassportService {
     });
 
     const data: PassportResponse = await res.json();
+    console.log("[Passport] 验证码登录响应:", JSON.stringify(data).slice(0, 300));
 
     if (data.code !== 200) {
-      throw new Error(data.message || "登录失败");
+      throw new Error(data.msg || data.message || "登录失败");
     }
 
     return {
-      token: data.token || "",
-      uid: String(data.uid || ""),
-      nickName: data.nickname || data.nickName || "",
+      // data.token/uid 可能在根层级或嵌套在 data 字段内
+      token: data.token || (data.data as any)?.token || "",
+      uid: String(data.uid || (data.data as any)?.uid || ""),
+      nickName: data.nickname || data.nickName || (data.data as any)?.nickname || (data.data as any)?.nickName || "",
       avatar: data.avatar,
       mobile: data.mobile,
     };

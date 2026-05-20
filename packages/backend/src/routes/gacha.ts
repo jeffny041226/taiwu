@@ -122,7 +122,8 @@ async function getGachaChances(uid: string): Promise<number> {
   const sb = getSupabase();
   if (sb) {
     const { data } = await sb.from("users").select("gacha_chances").eq("uid", uid).single();
-    return data?.gacha_chances || 0;
+    if (data) return data.gacha_chances || 0;
+    // Supabase 用户不存在 → 回退到内存
   }
   return memoryGetGachaChances(uid);
 }
@@ -131,9 +132,12 @@ async function deductGachaChances(uid: string, count: number): Promise<void> {
   const sb = getSupabase();
   if (sb) {
     const { data } = await sb.from("users").select("gacha_chances").eq("uid", uid).single();
-    const updated = Math.max(0, (data?.gacha_chances || 0) - count);
-    await sb.from("users").update({ gacha_chances: updated }).eq("uid", uid);
-    return;
+    if (data) {
+      const updated = Math.max(0, (data.gacha_chances || 0) - count);
+      await sb.from("users").update({ gacha_chances: updated }).eq("uid", uid);
+      return;
+    }
+    // Supabase 用户不存在 → 回退到内存
   }
   const current = memoryGetGachaChances(uid);
   memorySetGachaChances(uid, Math.max(0, current - count));

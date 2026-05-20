@@ -15,9 +15,20 @@ export const BATTLE_MODE = process.env.BATTLE_MODE || "tag_team";
 export const PASSPORT_BASE_URL = process.env.PASSPORT_BASE_URL || "http://passport.szwb.imgo.tv";
 export const PASSPORT_PLATFORM = parseInt(process.env.PASSPORT_PLATFORM || "7", 10);
 
-// 微信支付配置（占位符，接入时替换）
+// 微信支付配置（服务商模式 — 山海平台）
+export const WX_SP_APPID = process.env.WX_SP_APPID || "";           // 服务商APPID
+export const WX_SP_MCHID = process.env.WX_SP_MCHID || "";           // 服务商商户号
+export const WX_SUB_MCHID = process.env.WX_SUB_MCHID || "";         // 子商户号
+export const WX_SUB_APPID = process.env.WX_SUB_APPID || "";         // 子商户APPID（可选）
+export const WX_API_V3_KEY = process.env.WX_API_V3_KEY || "";       // APIv3密钥（回调通知解密用）
+export const WX_CERT_SERIAL = process.env.WX_CERT_SERIAL || "";     // 商户API证书序列号
+export const WX_CERT_PRIVATE_KEY_PATH = process.env.WX_CERT_PRIVATE_KEY_PATH || ""; // API证书私钥路径
+export const WX_PAY_NOTIFY_URL = process.env.WX_PAY_NOTIFY_URL || "http://localhost:4000/api/pay/notify";
+
+// 旧参数（兼容过渡，后续清理）
 export const WX_APP_ID = process.env.WX_APP_ID || "wx_placeholder_appid";
 export const WX_MCH_ID = process.env.WX_MCH_ID || "placeholder_mch_id";
 export const WX_API_KEY = process.env.WX_API_KEY || "placeholder_api_key";
-export const WX_NOTIFY_URL = process.env.WX_NOTIFY_URL || "http://localhost:4000/api/pay/notify";
-export const WX_PAY_MOCK = process.env.WX_PAY_MOCK === "true" || !process.env.WX_MCH_ID || process.env.WX_MCH_ID === "placeholder_mch_id";
+
+/** 是否 mock 模式 — 当核心参数为占位符时自动启用 */
+export const WX_PAY_MOCK = process.env.WX_PAY_MOCK === "true" || !process.env.WX_SP_APPID || process.env.WX_SP_APPID === "wx_placeholder_appid";

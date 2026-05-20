@@ -29,12 +29,53 @@ export default function MarketPage() {
   const [results, setResults] = useState<GachaResult[]>([]);
   const [showResults, setShowResults] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
+  const [pendingPayment, setPendingPayment] = useState<{ orderId: string; amount: number } | null>(null);
 
   // Auth init + load chances
   useEffect(() => {
     ensureAuth();
     loadChances();
   }, []);
+
+  // 检查是否从微信 H5 支付返回
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const payOrderId = params.get("pay_order");
+    if (!payOrderId) return;
+
+    // 清除 URL 参数
+    window.history.replaceState(null, "", "/market");
+
+    // 轮询查询支付结果
+    const poll = async () => {
+      try {
+        const status = await api.payStatus(payOrderId);
+        if (status.paid) {
+          setChances(status.chances);
+          setErrorMsg("支付成功，开始抽笼...");
+
+          // 自动抽卡
+          const data = await api.pullGacha(selectedCount);
+          setResults(data.results as GachaResult[]);
+          setShowResults(true);
+          setChances(c => c - selectedCount);
+          setErrorMsg("");
+          return true;
+        }
+        return false;
+      } catch {
+        return false;
+      }
+    };
+
+    // 立即查一次，失败则 2 秒后再查
+    poll().then(done => {
+      if (!done) {
+        const timer = setTimeout(() => { poll(); }, 2000);
+        return () => clearTimeout(timer);
+      }
+    });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadChances = async () => {
     try {
@@ -67,25 +108,17 @@ export default function MarketPage() {
     setIsPaying(true);
     try {
       const productKey = `gacha_${selectedCount}`;
-      // 1. 创建订单
       const order = await api.createPayOrder(productKey);
 
       if (order.mock) {
-        // Mock 模式 — 直接确认支付
-        const paid = await api.confirmPay(order.order_id);
-        if (paid.success) {
-          setChances(paid.chances);
-          setErrorMsg("支付成功，开始抽笼...");
-          // 支付成功 → 自动抽
-          const data = await api.pullGacha(selectedCount);
-          setResults(data.results as GachaResult[]);
-          setShowResults(true);
-          setChances(c => c - selectedCount);
-          setErrorMsg("");
-        }
+        // Mock 模式 — 弹出支付确认框
+        setPendingPayment({ orderId: order.order_id, amount: selectedCount });
+        return;
       } else if (order.mweb_url) {
-        // 真实 H5 支付 — 跳转到微信
-        window.location.href = order.mweb_url;
+        // 真实 H5 支付 — 保存订单ID，跳转微信
+        // 微信支付完成后会跳回 /market?pay_order=xxx
+        const redirectUrl = `${window.location.origin}/market?pay_order=${order.order_id}`;
+        window.location.href = `${order.mweb_url}&redirect_url=${encodeURIComponent(redirectUrl)}`;
       } else {
         setErrorMsg("支付功能暂未开通");
       }
@@ -98,6 +131,32 @@ export default function MarketPage() {
     } finally {
       setIsPaying(false);
     }
+  };
+
+  const confirmMockPayment = async () => {
+    if (!pendingPayment) return;
+    setIsPaying(true);
+    try {
+      const paid = await api.confirmPay(pendingPayment.orderId);
+      if (paid.success) {
+        setChances(paid.chances);
+        setErrorMsg("支付成功，开始抽笼...");
+        const data = await api.pullGacha(selectedCount);
+        setResults(data.results as GachaResult[]);
+        setShowResults(true);
+        setChances(c => c - selectedCount);
+        setErrorMsg("");
+      }
+    } catch {
+      setErrorMsg("支付确认失败");
+    } finally {
+      setIsPaying(false);
+      setPendingPayment(null);
+    }
+  };
+
+  const cancelMockPayment = () => {
+    setPendingPayment(null);
   };
 
   const closeResults = () => {
@@ -120,16 +179,11 @@ export default function MarketPage() {
 
         {/* Right: Action Panel */}
         <div className="w-1/2 flex flex-col items-center pt-12 px-2 gap-[14px]">
-          {/* 剩余次数 */}
-          <div className="w-[175px] text-center mb-2">
-            <p className="text-[12px] text-[var(--color-text-muted)] font-[family-name:var(--font-noto-serif)]">剩余次数</p>
-            <p className="text-[28px] font-bold text-[var(--color-gold)] font-[family-name:var(--font-noto-serif)]">{chances}</p>
-          </div>
 
           {([1, 5, 10] as const).map((count) => (
             <button key={count} type="button" onClick={() => setSelectedCount(count)}
               className={selectedCount === count ? gachaBtnActive : gachaBtnInactive}>
-              {chances >= count ? `开${count}笼` : `开${count}笼 ¥${count}`}
+              {chances >= count ? `开${count}笼` : `开${count}笼`}
             </button>
           ))}
 
@@ -152,6 +206,35 @@ export default function MarketPage() {
           </div>
         </div>
       </div>
+
+      {/* Payment confirmation overlay (mock mode) */}
+      {pendingPayment && (
+        <div className="absolute inset-0 z-50 bg-[var(--color-bg-base)]/85 backdrop-blur-sm flex items-center justify-center px-4">
+          <div className="w-full max-w-[342px] rounded-2xl border border-[var(--color-gold)]/40 bg-[rgba(20,14,10,0.9)] flex flex-col gap-5 py-6 px-5">
+            <p className="text-[20px] font-bold text-[var(--color-gold)] font-[family-name:var(--font-ma-shan)] text-center">确认支付</p>
+
+            <div className="flex flex-col items-center gap-2">
+              <p className="text-[14px] text-[var(--color-text-secondary)] font-[family-name:var(--font-noto-serif)]">
+                开{pendingPayment.amount}笼
+              </p>
+              <p className="text-[32px] font-bold text-[var(--color-gold)] font-[family-name:var(--font-noto-serif)]">
+                ¥{pendingPayment.amount}
+              </p>
+            </div>
+
+            <div className="flex gap-3">
+              <button type="button" onClick={cancelMockPayment}
+                className="flex-1 h-[44px] rounded-lg border border-[var(--color-gold)]/20 text-[16px] text-[var(--color-text-secondary)] font-[family-name:var(--font-noto-serif)] hover:border-[var(--color-gold)]/40 active:scale-[0.98] transition-all">
+                取消
+              </button>
+              <button type="button" onClick={confirmMockPayment} disabled={isPaying}
+                className="flex-1 h-[44px] rounded-lg border border-[var(--color-gold)] bg-gradient-to-b from-[rgba(197,160,89,0.15)] to-[rgba(20,14,10,0.9)] text-[16px] font-bold text-[var(--color-gold)] font-[family-name:var(--font-noto-serif)] hover:border-[var(--color-gold)]/70 active:scale-[0.98] transition-all disabled:opacity-50">
+                {isPaying ? "支付中..." : "确认支付"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Results overlay */}
       {showResults && (

@@ -2,7 +2,12 @@ import { Router, Request, Response } from "express";
 import { authMiddleware } from "../middleware/auth";
 import { getSupabase } from "../db/supabase";
 import { memoryGetGachaChances, memoryAddGachaChances } from "../lib/memory-store";
-import { WX_APP_ID, WX_MCH_ID, WX_API_KEY, WX_NOTIFY_URL, WX_PAY_MOCK } from "../config/env";
+import {
+  WX_APP_ID, WX_MCH_ID, WX_PAY_MOCK,
+  WX_SP_APPID, WX_SP_MCHID, WX_SUB_MCHID, WX_SUB_APPID,
+  WX_PAY_NOTIFY_URL, WX_API_V3_KEY,
+} from "../config/env";
+import { createH5PayOrder, queryOrder, decryptCallback, verifyCallbackSignature } from "../services/wechat-pay";
 
 export const payRouter = Router();
 
@@ -13,11 +18,13 @@ const PRODUCTS: Record<string, { label: string; amount: number; chances: number 
   "gacha_10": { label: "抽十笼",  amount: 10, chances: 10 },
 };
 
-// 模拟订单存储 (生产环境应存 DB)
-const mockOrders = new Map<string, { uid: string; product: string; chances: number; paid: boolean }>();
+// 订单存储 (生产环境应存 DB)
+const orders = new Map<string, { uid: string; product: string; chances: number; paid: boolean }>();
 
 /**
  * POST /api/pay/create — 创建微信 H5 支付订单
+ * Mock 模式：直接返回 mock 订单
+ * 真实模式：调用微信支付统一下单 API
  */
 payRouter.post("/create", authMiddleware, async (req: Request, res: Response) => {
   const uid = req.user!.uid;
@@ -32,45 +39,56 @@ payRouter.post("/create", authMiddleware, async (req: Request, res: Response) =>
   const orderId = `gacha_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
   if (WX_PAY_MOCK) {
-    // 占位模式 — 直接成功
-    mockOrders.set(orderId, { uid, product, chances: prod.chances, paid: false });
-
+    // Mock 模式 — 创建内存订单，返回 mock 标记
+    orders.set(orderId, { uid, product, chances: prod.chances, paid: false });
+    console.log(`[Pay] Mock 创建订单: ${orderId}, product=${product}, uid=${uid}`);
     res.json({
       success: true,
       order_id: orderId,
       mock: true,
-      mweb_url: null, // 前端根据 mock 字段跳过支付
+      mweb_url: null,
     });
     return;
   }
 
-  // TODO: 真实微信 H5 支付 — 调用统一下单 API
-  // const prepay = await wxUnifiedOrder({
-  //   appid: WX_APP_ID,
-  //   mch_id: WX_MCH_ID,
-  //   nonce_str: ...,
-  //   body: prod.label,
-  //   out_trade_no: orderId,
-  //   total_fee: prod.amount * 100, // 单位：分
-  //   spbill_create_ip: req.ip,
-  //   notify_url: WX_NOTIFY_URL,
-  //   trade_type: "MWEB",
-  //   scene_info: JSON.stringify({ h5_info: { type: "Wap" } }),
-  // });
-  // const sign = md5Sign(prepay, WX_API_KEY);
+  // 真实模式 — 调用微信统一下单
+  try {
+    const clientIp = req.headers["x-forwarded-for"] as string || req.socket.remoteAddress || "127.0.0.1";
+    const notifyUrl = WX_PAY_NOTIFY_URL;
 
-  // 占位 — 真实接入时返回 mweb_url
-  res.json({
-    success: true,
-    order_id: orderId,
-    mock: false,
-    mweb_url: null, // 真实 H5 支付 URL
-  });
+    const wxResult = await createH5PayOrder({
+      sp_appid: WX_SP_APPID,
+      sp_mchid: WX_SP_MCHID,
+      sub_mchid: WX_SUB_MCHID,
+      sub_appid: WX_SUB_APPID || undefined,
+      description: prod.label,
+      out_trade_no: orderId,
+      notify_url: notifyUrl,
+      amount: { total: prod.amount * 100, currency: "CNY" },
+      scene_info: {
+        payer_client_ip: clientIp,
+        h5_info: { type: "Wap", app_name: "斗蛐蛐", app_url: "https://taiwu.example.com" },
+      },
+    });
+
+    // 保存订单
+    orders.set(orderId, { uid, product, chances: prod.chances, paid: false });
+    console.log(`[Pay] 微信H5下单成功: ${orderId}, h5_url=${wxResult.h5_url.slice(0, 60)}...`);
+
+    res.json({
+      success: true,
+      order_id: orderId,
+      mock: false,
+      mweb_url: wxResult.h5_url,
+    });
+  } catch (e: any) {
+    console.error("[Pay] 微信下单失败:", e.message);
+    res.status(500).json({ error: "支付服务暂不可用" });
+  }
 });
 
 /**
  * POST /api/pay/confirm — 支付确认（mock 模式专用）
- * 前端在 mock 模式下调用此接口模拟支付成功
  */
 payRouter.post("/confirm", authMiddleware, async (req: Request, res: Response) => {
   const uid = req.user!.uid;
@@ -81,7 +99,7 @@ payRouter.post("/confirm", authMiddleware, async (req: Request, res: Response) =
     return;
   }
 
-  const order = mockOrders.get(order_id);
+  const order = orders.get(order_id);
   if (!order) {
     res.status(404).json({ error: "订单不存在" });
     return;
@@ -97,7 +115,6 @@ payRouter.post("/confirm", authMiddleware, async (req: Request, res: Response) =
     return;
   }
 
-  // 增加抽奖次数
   const newChances = await addGachaChances(uid, order.chances);
   order.paid = true;
 
@@ -108,15 +125,58 @@ payRouter.post("/confirm", authMiddleware, async (req: Request, res: Response) =
 
 /**
  * POST /api/pay/notify — 微信支付结果回调
+ * Mock 模式：仅记录日志
+ * 真实模式：验签 → 解密 → 更新订单
  */
-payRouter.post("/notify", (req: Request, res: Response) => {
-  const xml = req.body;
-  console.log(`[Pay] 微信回调:`, typeof xml === "string" ? xml.slice(0, 200) : JSON.stringify(xml).slice(0, 200));
+payRouter.post("/notify", async (req: Request, res: Response) => {
+  const rawBody = JSON.stringify(req.body);
+  console.log(`[Pay] 微信回调:`, rawBody.slice(0, 300));
 
-  // TODO: 解析 XML → 验签 → 更新订单 → 增加次数
+  if (WX_PAY_MOCK) {
+    res.set("Content-Type", "application/json");
+    res.json({ code: "SUCCESS", message: "成功" });
+    return;
+  }
 
-  res.set("Content-Type", "application/xml");
-  res.send(`<xml><return_code><![CDATA[SUCCESS]]></return_code><return_msg><![CDATA[OK]]></return_msg></xml>`);
+  // 真实模式：验签 + 解密
+  const headers: Record<string, string> = {};
+  for (const [k, v] of Object.entries(req.headers)) {
+    if (typeof v === "string") headers[k] = v;
+  }
+
+  if (!verifyCallbackSignature(headers, rawBody)) {
+    res.status(401).json({ code: "FAIL", message: "签名验证失败" });
+    return;
+  }
+
+  try {
+    const body = req.body as {
+      resource?: { ciphertext: string; nonce: string; associated_data: string };
+    };
+    const resource = body?.resource;
+    if (!resource) {
+      res.status(400).json({ code: "FAIL", message: "无效的回调数据" });
+      return;
+    }
+
+    const plaintext = decryptCallback(resource.ciphertext, resource.nonce, resource.associated_data);
+    const payResult = JSON.parse(plaintext);
+    const outTradeNo = payResult.out_trade_no;
+
+    if (outTradeNo && payResult.trade_state === "SUCCESS") {
+      const order = orders.get(outTradeNo);
+      if (order && !order.paid) {
+        const newChances = await addGachaChances(order.uid, order.chances);
+        order.paid = true;
+        console.log(`[Pay] 回调确认支付成功: ${outTradeNo}, uid=${order.uid}, +${order.chances}次, total=${newChances}`);
+      }
+    }
+  } catch (e: any) {
+    console.error("[Pay] 回调处理失败:", e.message);
+  }
+
+  res.set("Content-Type", "application/json");
+  res.json({ code: "SUCCESS", message: "成功" });
 });
 
 /**
@@ -132,14 +192,35 @@ payRouter.get("/status", authMiddleware, async (req: Request, res: Response) => 
   }
 
   if (WX_PAY_MOCK) {
-    const order = mockOrders.get(order_id);
+    const order = orders.get(order_id);
     if (!order) { res.status(404).json({ error: "订单不存在" }); return; }
     res.json({ paid: order.paid, chances: order.paid ? order.chances : 0 });
     return;
   }
 
-  // TODO: 查询微信订单状态
-  res.json({ paid: false, chances: 0 });
+  // 真实模式 — 查微信订单状态
+  try {
+    const wxOrder = await queryOrder(order_id, WX_SUB_MCHID || WX_MCH_ID);
+    const isPaid = wxOrder.trade_state === "SUCCESS";
+
+    if (isPaid) {
+      // 首次查到已支付 → 加次数
+      const order = orders.get(order_id);
+      if (order && !order.paid && order.uid === uid) {
+        const newChances = await addGachaChances(uid, order.chances);
+        order.paid = true;
+        console.log(`[Pay] 查单确认支付成功: ${order_id}, +${order.chances}次`);
+        res.json({ paid: true, chances: newChances });
+        return;
+      }
+      res.json({ paid: true, chances: order?.chances || 0 });
+    } else {
+      res.json({ paid: false, chances: 0 });
+    }
+  } catch (e: any) {
+    console.error("[Pay] 查单失败:", e.message);
+    res.json({ paid: false, chances: 0 });
+  }
 });
 
 /**
@@ -150,8 +231,11 @@ payRouter.get("/chances", authMiddleware, async (req: Request, res: Response) =>
   const sb = getSupabase();
   if (sb) {
     const { data } = await sb.from("users").select("gacha_chances").eq("uid", uid).single();
-    res.json({ chances: data?.gacha_chances || 0 });
-    return;
+    if (data) {
+      res.json({ chances: data.gacha_chances || 0 });
+      return;
+    }
+    // Supabase 用户不存在 → 回退到内存
   }
   res.json({ chances: memoryGetGachaChances(uid) });
 });
@@ -167,7 +251,10 @@ async function addGachaChances(uid: string, delta: number): Promise<number> {
       .eq("uid", uid)
       .single();
 
-    if (error || !data) return 0;
+    if (error || !data) {
+      // Supabase 用户不存在 → 回退到内存存储
+      return memoryAddGachaChances(uid, delta);
+    }
 
     const updated = (data.gacha_chances || 0) + delta;
     await sb.from("users").update({ gacha_chances: updated }).eq("uid", uid);
