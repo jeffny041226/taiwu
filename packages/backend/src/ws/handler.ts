@@ -506,7 +506,8 @@ export function handleMessage(ws: WebSocket, rawData: Buffer): void {
           broadcastBattleData(room);
           broadcast(roomId, "room:state", buildRoomState(room));
           if (room.isPractice) {
-            startPracticeLoop(roomId);
+            // 延迟开始第一回合，让客户端先收到 battle:data 渲染满血状态
+            room.actionTimer = setTimeout(() => startPracticeLoop(roomId), 1500);
           } else {
             startActionTimer(roomId);
           }

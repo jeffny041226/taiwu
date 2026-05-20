@@ -349,9 +349,12 @@ export default function BattlePage({ params }: { params: Promise<{ roomId: strin
     };
 
     const handleGameOver = (payload: unknown) => {
-      setPvpPhase("finished");
       const r = payload as { winner: string; myScore: number; enemyScore: number; reason?: string };
-      setPvpGameOver({ winner: r.winner, myScore: r.myScore, enemyScore: r.enemyScore });
+      // 延迟弹出，等血量动画播完（HP transition 500ms + 动作标签 1200ms）
+      setTimeout(() => {
+        setPvpPhase("finished");
+        setPvpGameOver({ winner: r.winner, myScore: r.myScore, enemyScore: r.enemyScore });
+      }, 1200);
     };
 
     const handleCricketChange = (payload: unknown) => {
