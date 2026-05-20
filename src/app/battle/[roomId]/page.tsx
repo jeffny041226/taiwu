@@ -115,9 +115,10 @@ function BenchCard({ cricket, status, flipped }: { cricket: Cricket; status: "wa
   );
 }
 
-function InfoBar({ label, name, title, tier, hp, maxHp, stamina, maxStamina, spirit }: {
+function InfoBar({ label, name, title, tier, hp, maxHp, stamina, maxStamina, spirit, cricketKey }: {
   label: string; name: string; title: string; tier: string;
   hp: number; maxHp: number; stamina: number; maxStamina: number; spirit: number;
+  cricketKey?: string | number;
 }) {
   const tierColor = TIER_COLORS[tier] || "#a0a0a0";
   const hpPct = Math.max((hp / maxHp) * 100, 0);
@@ -139,7 +140,7 @@ function InfoBar({ label, name, title, tier, hp, maxHp, stamina, maxStamina, spi
           <div className="flex items-center gap-1.5">
             <span className="text-[11px] font-bold text-[var(--color-text-muted)] w-4 font-[family-name:var(--font-noto-serif)]">HP</span>
             <div className="w-[160px] h-4 rounded-md" style={{ backgroundColor: "#5a2218" }}>
-              <div className="h-full rounded-md transition-all duration-500" style={{ width: hpPct + "%", backgroundColor: hpColor, animation: hpAnim }} />
+              <div key={cricketKey} className="h-full rounded-md transition-all duration-500" style={{ width: hpPct + "%", backgroundColor: hpColor, animation: hpAnim }} />
             </div>
             <span className="text-[11px] font-bold text-[var(--color-text-primary)] font-[family-name:var(--font-noto-serif)]">{hp}/{maxHp}</span>
           </div>
@@ -201,6 +202,12 @@ export default function BattlePage({ params }: { params: Promise<{ roomId: strin
   const [lastMyAction, setLastMyAction] = useState<Action | null>(null);
   const [lastEnemyAction, setLastEnemyAction] = useState<Action | null>(null);
   const [showRoundEnd, setShowRoundEnd] = useState(false);
+  // 特效状态
+  const [impactTarget, setImpactTarget] = useState<"me" | "enemy" | null>(null);
+  const [showSlash, setShowSlash] = useState<{ side: "me" | "enemy" } | null>(null);
+  const [showShield, setShowShield] = useState<{ side: "me" | "enemy"; phase: "spawn" | "shrink" } | null>(null);
+  const [showSoundWave, setShowSoundWave] = useState<{ side: "me" | "enemy" } | null>(null);
+  const [showBlocked, setShowBlocked] = useState<{ side: "me" | "enemy" } | null>(null);
   const [myOffset, setMyOffset] = useState(0);
   const [enemyOffset, setEnemyOffset] = useState(0);
   const [axisAngle, setAxisAngle] = useState(0);
@@ -292,6 +299,51 @@ export default function BattlePage({ params }: { params: Promise<{ roomId: strin
       setEnemyOffset(55);
 
       setTimeout(() => {
+        // ── 撕咬特效 ──
+        // 我方动作: 用在我方攻击敌人
+        if (r.myAction === "heavy_strike" && r.enemyDamage > 0) {
+          setImpactTarget("enemy");
+          setTimeout(() => setImpactTarget(null), 600);
+        }
+        if (r.myAction === "feint" && r.enemyDamage > 0) {
+          setShowSlash({ side: "enemy" });
+          setTimeout(() => setShowSlash(null), 500);
+        }
+        if (r.myAction === "chirp") {
+          setShowSoundWave({ side: "me" });
+          setTimeout(() => setShowSoundWave(null), 800);
+        }
+        if (r.myAction === "block") {
+          setShowShield({ side: "me", phase: "spawn" });
+        }
+
+        // 敌方动作: 用在我方
+        if (r.enemyAction === "heavy_strike" && r.myDamage > 0) {
+          setImpactTarget("me");
+          setTimeout(() => setImpactTarget(null), 600);
+        }
+        if (r.enemyAction === "feint" && r.myDamage > 0) {
+          setShowSlash({ side: "me" });
+          setTimeout(() => setShowSlash(null), 500);
+        }
+        if (r.enemyAction === "chirp") {
+          setShowSoundWave({ side: "enemy" });
+          setTimeout(() => setShowSoundWave(null), 800);
+        }
+        if (r.enemyAction === "block") {
+          setShowShield({ side: "enemy", phase: "spawn" });
+        }
+
+        // 被格挡标记
+        if (r.myBlocked) {
+          setShowBlocked({ side: "me" });
+          setTimeout(() => setShowBlocked(null), 600);
+        }
+        if (r.enemyBlocked) {
+          setShowBlocked({ side: "enemy" });
+          setTimeout(() => setShowBlocked(null), 600);
+        }
+
         if (r.enemyDamage > 0) {
           setShowDamage({ dmg: -r.enemyDamage, target: "enemy" });
           addLog(myName + " 造成 " + r.enemyDamage + " 伤害" + (r.myCounter > 1 ? " (克制x" + r.myCounter + ")" : ""));
@@ -322,6 +374,9 @@ export default function BattlePage({ params }: { params: Promise<{ roomId: strin
         setMyOffset(0); setEnemyOffset(0);
         const angle = (Math.random() < 0.5 ? 1 : -1) * (20 + Math.random() * 70);
         setAxisAngle(Math.round(angle));
+        // 护盾收缩
+        setShowShield(prev => prev ? { ...prev, phase: "shrink" } : null);
+        setTimeout(() => setShowShield(null), 400);
       }, 400);
 
       setRoundCount(c => c + 1);
@@ -553,6 +608,11 @@ export default function BattlePage({ params }: { params: Promise<{ roomId: strin
       if (result.defenderResult.staminaDelta) addLog(a.name + " 耐力 " + (result.defenderResult.staminaDelta > 0 ? "+" : "") + result.defenderResult.staminaDelta);
       if (result.attackerResult.spiritDelta) addLog(p.name + " 斗性 " + (result.attackerResult.spiritDelta > 0 ? "+" : "") + result.attackerResult.spiritDelta);
       if (result.defenderResult.spiritDelta) addLog(a.name + " 斗性 " + (result.defenderResult.spiritDelta > 0 ? "+" : "") + result.defenderResult.spiritDelta);
+      // 同步更新体力/斗性
+      setTrainPlayerStamina(s => Math.max(0, s + (result.attackerResult.staminaDelta || 0)));
+      setTrainPlayerSpirit(s => Math.max(0, s + (result.attackerResult.spiritDelta || 0)));
+      setTrainAiStamina(s => Math.max(0, s + (result.defenderResult.staminaDelta || 0)));
+      setTrainAiSpirit(s => Math.max(0, s + (result.defenderResult.spiritDelta || 0)));
       setTimeout(() => setShowDamage(null), 450);
     }, 200);
     setTimeout(() => { setMyOffset(0); setEnemyOffset(0); const ang = (Math.random() < 0.5 ? 1 : -1) * (20 + Math.random() * 70); setAxisAngle(Math.round(ang)); }, 400);
@@ -586,7 +646,15 @@ export default function BattlePage({ params }: { params: Promise<{ roomId: strin
     if (trainAiHp <= 0 && playerTeam.length > 0) {
       const next = currentAiIdx + 1;
       if (next >= aiTeam.length) { setTrainGameOver(true); setTrainWinner("你"); }
-      else setCurrentAiIdx(next);
+      else {
+        setCurrentAiIdx(next);
+        const newAi = aiTeam[next];
+        if (newAi) {
+          setTrainAiHp(newAi.hp);
+          setTrainAiStamina(newAi.stamina);
+          setTrainAiSpirit(newAi.spirit);
+        }
+      }
     }
   }, [trainAiHp, currentAiIdx, aiTeam, isPractice, trainGameOver, playerTeam.length, wsReady]);
 
@@ -595,7 +663,15 @@ export default function BattlePage({ params }: { params: Promise<{ roomId: strin
     if (trainPlayerHp <= 0 && playerTeam.length > 0) {
       const next = currentPlayerIdx + 1;
       if (next >= playerTeam.length) { setTrainGameOver(true); setTrainWinner("AI"); }
-      else setCurrentPlayerIdx(next);
+      else {
+        setCurrentPlayerIdx(next);
+        const newPlayer = playerTeam[next];
+        if (newPlayer) {
+          setTrainPlayerHp(newPlayer.hp);
+          setTrainPlayerStamina(newPlayer.stamina);
+          setTrainPlayerSpirit(newPlayer.spirit);
+        }
+      }
     }
   }, [trainPlayerHp, currentPlayerIdx, playerTeam, isPractice, trainGameOver, playerTeam.length, wsReady]);
 
@@ -642,12 +718,13 @@ export default function BattlePage({ params }: { params: Promise<{ roomId: strin
 
   const myCricketClass = showDamage?.target === "me" ? "brightness-150" : lastMyAction ? "brightness-110" : "opacity-90";
   const enemyCricketClass = showDamage?.target === "enemy" ? "brightness-150" : lastEnemyAction ? "brightness-110" : "opacity-90";
-  const myAnimClass = showDamage?.target === "me" ? "shake 0.4s ease-out" : lastMyAction ? "shake 0.3s ease-out" : "idle-float 2.5s ease-in-out infinite";
-  const enemyAnimClass = showDamage?.target === "enemy" ? "shake 0.4s ease-out" : lastEnemyAction ? "shake 0.3s ease-out" : "idle-float 2.5s ease-in-out infinite";
+  // 招式驱动动画
+  const myAnimClass = showDamage?.target === "me" ? "shake 0.4s ease-out" : lastMyAction ? `attack-player-${lastMyAction} 0.5s ease-out` : "idle-float 2.5s ease-in-out infinite";
+  const enemyAnimClass = showDamage?.target === "enemy" ? "shake 0.4s ease-out" : lastEnemyAction ? `attack-ai-${lastEnemyAction} 0.5s ease-out` : "idle-float 2.5s ease-in-out infinite";
 
   return (
     <div className="relative w-full h-[100dvh] overflow-hidden">
-      <Image src="/assets/backgrounds/bg-battle.webp" alt="" fill unoptimized className="object-cover" priority />
+      <Image src="/assets/backgrounds/bg-battle.webp?v=2" alt="" fill unoptimized className="object-cover" priority />
       <div className="absolute inset-0 bg-[var(--color-bg-base)]/60" />
       <TopBar
         title={isPractice ? `训练(${BATTLE_MODE_LABELS[BATTLE_MODE]})` : `对战·${BATTLE_MODE_LABELS[BATTLE_MODE]}`}
@@ -659,7 +736,7 @@ export default function BattlePage({ params }: { params: Promise<{ roomId: strin
       {/* 对手信息 */}
       <div className="absolute top-[54px] left-0 right-0 z-10 border-b border-[var(--color-gold)]/8 bg-[var(--color-bg-base)]/90 backdrop-blur-sm">
         <InfoBar label="敌" name={enemyCricket?.name || "..."} title={enemyCricket?.title || ""} tier={enemyCricket?.tier || "common"}
-          hp={currentEnemyHp} maxHp={enemyCricket?.maxHp || 100} stamina={currentEnemyStamina} maxStamina={enemyCricket?.maxStamina || 100} spirit={currentEnemySpirit} />
+          hp={currentEnemyHp} maxHp={enemyCricket?.maxHp || 100} stamina={currentEnemyStamina} maxStamina={enemyCricket?.maxStamina || 100} spirit={currentEnemySpirit} cricketKey={enemyCurrentIdx} />
       </div>
 
       {/* 对手待战区 */}
@@ -675,11 +752,28 @@ export default function BattlePage({ params }: { params: Promise<{ roomId: strin
       <div className="absolute top-[208px] bottom-[182px] left-0 right-0 z-5 flex items-center justify-center overflow-hidden">
         <div className="relative w-[450px] h-[450px] flex items-center justify-center">
           <Image src="/assets/ui/arena/arena-circle.png" alt="" width={450} height={450} unoptimized className="absolute" />
+
+          {/* ── 特效层 ── */}
+          {/* 猛击: 冲击波 (撞击点) */}
+          {impactTarget && (
+            <div className="absolute top-1/2 left-1/2 z-20 pointer-events-none">
+              <div className="absolute rounded-full border-2 border-[#ffd700] w-[80px] h-[80px]" style={{ animation: "impact-ring 0.5s ease-out forwards" }} />
+              <div className="absolute rounded-full border border-[#ffaa00] w-[60px] h-[60px]" style={{ animation: "impact-ring 0.4s ease-out 0.1s forwards" }} />
+            </div>
+          )}
+
+          {/* 虚晃: 弧光斩 */}
+          {showSlash && (
+            <div className="absolute top-1/2 left-1/2 z-20 pointer-events-none" style={{ transform: `translate(-50%, -50%) ${showSlash.side === "enemy" ? "" : "rotateY(180deg)"}` }}>
+              <div className="w-[120px] h-[4px] rounded-full" style={{ background: "linear-gradient(90deg, transparent, #60a5fa, #93c5fd, #60a5fa, transparent)", animation: "slash-arc 0.45s ease-out forwards", filter: "blur(1px)" }} />
+            </div>
+          )}
+
           <div className="absolute inset-0 transition-transform duration-[0.3s] ease-in-out" style={{ transform: "rotate(" + axisAngle + "deg)" }}>
 
             {/* 敌方蛐蛐 */}
             <div className="absolute left-[80px] top-1/2 transition-transform duration-[0.3s] ease-in-out" style={{ transform: "translateY(-50%) translateX(" + enemyOffset + "px)" }}>
-              <div className="flex flex-col items-center">
+              <div className="flex flex-col items-center relative">
                 <div className="relative flex flex-col items-center">
                   <div className="flex items-center justify-center mb-0.5 min-h-[13px]">
                     {lastEnemyAction && (
@@ -689,7 +783,31 @@ export default function BattlePage({ params }: { params: Promise<{ roomId: strin
                     )}
                   </div>
                   {showDamage?.target === "enemy" && <div className="absolute -top-5 text-[22px] font-bold font-[family-name:var(--font-noto-serif)] text-[#ffd700] animate-[float-up-fade_0.9s_ease-out_forwards]">{showDamage.dmg}</div>}
+                  {showBlocked?.side === "enemy" && <div className="absolute -top-5 text-[16px] font-bold font-[family-name:var(--font-noto-serif)] text-[#22c55e] animate-[float-up-fade_0.7s_ease-out_forwards]">格挡!</div>}
                 </div>
+                {/* 敌方特效 (跟随蛐蛐移动) */}
+                {showShield?.side === "enemy" && (
+                  <div className="absolute z-20 pointer-events-none" style={{ left: "50%", top: "50%", transform: "translate(-50%, -50%)" }}>
+                    <div className="w-[90px] h-[90px] rounded-full border-2 border-[var(--color-gold)]" style={{ animation: showShield.phase === "spawn" ? "shield-spawn 0.4s ease-out forwards" : "shield-shrink 0.4s ease-out forwards" }} />
+                    {showShield.phase === "spawn" && (
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        {[0, 1, 2, 3, 4].map(i => (
+                          <div key={i} className="absolute w-1.5 h-1.5 rounded-full bg-[var(--color-gold)]" style={{ animation: "particle-burst 0.5s ease-out forwards", "--px": ((i % 3) - 1) * 30 + "px", "--py": (i < 2 ? -20 : 20) + (i * 3) + "px" } as React.CSSProperties} />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+                {showSoundWave?.side === "enemy" && (
+                  <div className="absolute z-20 pointer-events-none" style={{ left: "50%", top: "50%", transform: "translate(-50%, -50%)" }}>
+                    {[0, 1, 2].map(i => (
+                      <div key={i} className="absolute rounded-full border-[var(--color-gold)] w-[50px] h-[50px]" style={{ animation: `sound-wave 0.6s ease-out ${i * 0.15}s forwards`, left: "-25px", top: "-25px" }} />
+                    ))}
+                    {[0, 1, 2, 3].map(i => (
+                      <div key={"sp" + i} className="absolute w-[3px] h-[3px] rounded-full bg-[#4ade80]" style={{ animation: `spirit-rise 0.7s ease-out ${i * 0.1}s forwards`, left: `${-10 + i * 7}px`, top: "-10px", "--drift": `${(i - 1.5) * 8}px` } as React.CSSProperties} />
+                    ))}
+                  </div>
+                )}
                 <div className="w-[75px] h-[65px] flex items-center justify-center" style={{ animation: enemyAnimClass }}>
                   {enemyCricket && <Image src={getCricketImage(enemyCricket)} alt={enemyCricket.name} width={75} height={65} unoptimized className={"object-contain transition-all duration-200 " + enemyCricketClass} style={{ transform: "rotate(90deg)" }} />}
                 </div>
@@ -698,7 +816,7 @@ export default function BattlePage({ params }: { params: Promise<{ roomId: strin
 
             {/* 我方蛐蛐 */}
             <div className="absolute right-[80px] top-1/2 transition-transform duration-[0.3s] ease-in-out" style={{ transform: "translateY(-50%) translateX(" + myOffset + "px)" }}>
-              <div className="flex flex-col items-center">
+              <div className="flex flex-col items-center relative">
                 <div className="relative flex flex-col items-center">
                   <div className="flex items-center justify-center mb-0.5 min-h-[13px]">
                     {lastMyAction && (
@@ -708,7 +826,31 @@ export default function BattlePage({ params }: { params: Promise<{ roomId: strin
                     )}
                   </div>
                   {showDamage?.target === "me" && <div className="absolute -top-5 text-[22px] font-bold font-[family-name:var(--font-noto-serif)] text-[#e04040] animate-[float-up-fade_0.9s_ease-out_forwards]">{showDamage.dmg}</div>}
+                  {showBlocked?.side === "me" && <div className="absolute -top-5 text-[16px] font-bold font-[family-name:var(--font-noto-serif)] text-[#22c55e] animate-[float-up-fade_0.7s_ease-out_forwards]">格挡!</div>}
                 </div>
+                {/* 我方特效 (跟随蛐蛐移动) */}
+                {showShield?.side === "me" && (
+                  <div className="absolute z-20 pointer-events-none" style={{ left: "50%", top: "50%", transform: "translate(-50%, -50%)" }}>
+                    <div className="w-[90px] h-[90px] rounded-full border-2 border-[var(--color-gold)]" style={{ animation: showShield.phase === "spawn" ? "shield-spawn 0.4s ease-out forwards" : "shield-shrink 0.4s ease-out forwards" }} />
+                    {showShield.phase === "spawn" && (
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        {[0, 1, 2, 3, 4].map(i => (
+                          <div key={i} className="absolute w-1.5 h-1.5 rounded-full bg-[var(--color-gold)]" style={{ animation: "particle-burst 0.5s ease-out forwards", "--px": ((i % 3) - 1) * 30 + "px", "--py": (i < 2 ? -20 : 20) + (i * 3) + "px" } as React.CSSProperties} />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+                {showSoundWave?.side === "me" && (
+                  <div className="absolute z-20 pointer-events-none" style={{ left: "50%", top: "50%", transform: "translate(-50%, -50%)" }}>
+                    {[0, 1, 2].map(i => (
+                      <div key={i} className="absolute rounded-full border-[var(--color-gold)] w-[50px] h-[50px]" style={{ animation: `sound-wave 0.6s ease-out ${i * 0.15}s forwards`, left: "-25px", top: "-25px" }} />
+                    ))}
+                    {[0, 1, 2, 3].map(i => (
+                      <div key={"sp" + i} className="absolute w-[3px] h-[3px] rounded-full bg-[#4ade80]" style={{ animation: `spirit-rise 0.7s ease-out ${i * 0.1}s forwards`, left: `${-10 + i * 7}px`, top: "-10px", "--drift": `${(i - 1.5) * 8}px` } as React.CSSProperties} />
+                    ))}
+                  </div>
+                )}
                 <div className="w-[75px] h-[65px] flex items-center justify-center" style={{ animation: myAnimClass }}>
                   {myCricket && <Image src={getCricketImage(myCricket)} alt={myCricket.name} width={75} height={65} unoptimized className={"object-contain transition-all duration-200 " + myCricketClass} style={{ transform: "rotate(-90deg)" }} />}
                 </div>
@@ -763,7 +905,7 @@ export default function BattlePage({ params }: { params: Promise<{ roomId: strin
       {/* 我方信息条 */}
       <div className="absolute bottom-[34px] left-0 right-0 z-10 border-t border-[var(--color-gold)]/8 bg-[var(--color-bg-base)]/90 backdrop-blur-sm">
         <InfoBar label="我" name={myCricket?.name || "..."} title={myCricket?.title || ""} tier={myCricket?.tier || "common"}
-          hp={currentMyHp} maxHp={myCricket?.maxHp || 100} stamina={currentMyStamina} maxStamina={myCricket?.maxStamina || 100} spirit={currentMySpirit} />
+          hp={currentMyHp} maxHp={myCricket?.maxHp || 100} stamina={currentMyStamina} maxStamina={myCricket?.maxStamina || 100} spirit={currentMySpirit} cricketKey={myCurrentIdx} />
       </div>
 
       {/* 游戏结束 */}

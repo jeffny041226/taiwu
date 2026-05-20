@@ -17,7 +17,7 @@ interface CachedToken {
 /** 内存 Token 缓存 — 避免每次请求都调用 Passport verifyToken */
 class TokenCache {
   private cache = new Map<string, CachedToken & { setAt: number }>();
-  private ttlMs = 5 * 60 * 1000; // 5 分钟
+  private ttlMs = 15 * 60 * 1000; // 15 分钟
 
   get(token: string): CachedToken | null {
     const entry = this.cache.get(token);

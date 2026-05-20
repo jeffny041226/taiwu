@@ -7,11 +7,11 @@
  */
 export const ASSETS = {
   backgrounds: {
-    home:     "/assets/backgrounds/bg-home.webp",
-    market:   "/assets/backgrounds/bg-market.webp",
-    backpack: "/assets/backgrounds/bg-backpack.webp",
-    battle:   "/assets/backgrounds/bg-battle.webp",
-    room:     "/assets/backgrounds/bg-room.webp",
+    home:     "/assets/backgrounds/bg-home.webp?v=2",
+    market:   "/assets/backgrounds/bg-market.webp?v=2",
+    backpack: "/assets/backgrounds/bg-backpack.webp?v=2",
+    battle:   "/assets/backgrounds/bg-battle.webp?v=2",
+    room:     "/assets/backgrounds/bg-room.webp?v=2",
   },
 
   ui: {

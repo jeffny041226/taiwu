@@ -207,8 +207,8 @@ function practiceStep(roomId: string, defeatedSide: "left" | "right" | "both" | 
   if (nextRound(room, defeatedSide)) {
     broadcast(roomId, "room:state", buildRoomState(room));
     broadcastCricketChange(room);
-    // 短暂延迟后开始下一轮
-    room.actionTimer = setTimeout(() => startPracticeLoop(roomId), 1500);
+    // 蛐蛐战败后延迟加倍，给玩家观看换蛐蛐动画的时间
+    room.actionTimer = setTimeout(() => startPracticeLoop(roomId), 3000);
   } else {
     finishRoom(room);
     const gameOverPerspective = (isLeft: boolean) => ({

@@ -10,7 +10,6 @@ import { useCountdown } from "@/hooks/useCountdown";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import { ensureAuth } from "@/lib/auth";
 import { api } from "@/lib/api";
-import { CRICKET_TEMPLATES } from "@taiwu/shared/data/cricket-templates";
 import type { CricketTemplate, Tier } from "@taiwu/shared/types/cricket";
 
 interface RoomPlayer {
@@ -283,7 +282,7 @@ export default function RoomPage({ params }: { params: Promise<{ roomId: string 
           {/* 蛐蛐列表 */}
           <div className="w-full max-w-[358px] overflow-y-auto flex-1" style={{ maxHeight: "420px" }}>
             <div className="grid grid-cols-2 gap-2">
-              {(crickets.length === 0 ? CRICKET_TEMPLATES.map(t => ({ id: t.id, templateId: t.id, template: t, attack: t.attack, defense: t.defense, speed: t.speed, maxHp: t.hpBase, maxStamina: t.staminaBase, spiritBase: t.spiritBase })) : crickets).map(c => {
+              {crickets.map(c => {
                 const tmpl = c.template;
                 const isSelected = selectedIds.includes(c.id);
                 return (

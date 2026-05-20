@@ -167,3 +167,60 @@ body {
   0%, 100% { transform: translateY(0); }
   50%      { transform: translateY(-3px); }
 }
+
+/* ── 招式特效 ── */
+
+/* 猛击: 冲击波环 */
+@keyframes impact-ring {
+  0%   { transform: translate(-50%, -50%) scale(0.3); opacity: 1; }
+  100% { transform: translate(-50%, -50%) scale(2.5); opacity: 0; }
+}
+
+/* 猛击: 残影拖尾 */
+@keyframes afterimage-trail {
+  0%   { opacity: 0.6; transform: scale(1); filter: blur(2px); }
+  100% { opacity: 0; transform: scale(1.3) translateX(-20px); filter: blur(8px); }
+}
+
+/* 虚晃: 弧光斩 */
+@keyframes slash-arc {
+  0%   { transform: translate(-50%, -50%) rotate(-30deg) scaleX(0); opacity: 1; }
+  40%  { transform: translate(-50%, -50%) rotate(-30deg) scaleX(1.8); opacity: 1; }
+  100% { transform: translate(-50%, -50%) rotate(-30deg) scaleX(1.8); opacity: 0; }
+}
+
+/* 格挡: 护盾展开 */
+@keyframes shield-spawn {
+  0%   { transform: translate(-50%, -50%) scale(0.5); opacity: 0.9; border-color: rgba(197,160,89,1); }
+  100% { transform: translate(-50%, -50%) scale(1.4); opacity: 0; border-color: rgba(197,160,89,0); }
+}
+
+/* 格挡: 护盾收缩 */
+@keyframes shield-shrink {
+  0%   { transform: translate(-50%, -50%) scale(1.0); opacity: 0.4; }
+  100% { transform: translate(-50%, -50%) scale(0.3); opacity: 0; }
+}
+
+/* 格挡: 碎光粒子迸散 */
+@keyframes particle-burst {
+  0%   { transform: translate(0, 0) scale(1); opacity: 1; }
+  100% { transform: translate(var(--px), var(--py)) scale(0); opacity: 0; }
+}
+
+/* 鸣叫: 音波圈 */
+@keyframes sound-wave {
+  0%   { transform: translate(-50%, -50%) scale(0.4); opacity: 0.8; border-width: 3px; }
+  100% { transform: translate(-50%, -50%) scale(2.0); opacity: 0; border-width: 0px; }
+}
+
+/* 鸣叫: 斗性粒子升腾 */
+@keyframes spirit-rise {
+  0%   { transform: translateY(0) translateX(0) scale(1); opacity: 1; }
+  100% { transform: translateY(-40px) translateX(var(--drift)) scale(0.3); opacity: 0; }
+}
+
+/* 伤害闪光 */
+@keyframes flash-hit {
+  0%   { filter: brightness(2.5); }
+  100% { filter: brightness(1); }
+}
