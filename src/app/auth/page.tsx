@@ -115,7 +115,8 @@ export default function AuthPage() {
                 type="button"
                 onClick={handleSendCode}
                 disabled={!canSendCode}
-                className="h-[48px] px-4 rounded-[10px] border border-[var(--color-gold)]/30 bg-gradient-to-b from-[rgba(30,22,16,0.85)] to-[rgba(20,14,10,0.9)] text-[13px] font-bold text-[var(--color-gold)] font-[family-name:var(--font-noto-serif)] hover:border-[var(--color-gold)]/70 active:scale-[0.98] transition-all disabled:opacity-40 whitespace-nowrap"
+                style={{ opacity: canSendCode ? 1 : 0.4 }}
+                className="h-[48px] px-4 rounded-[10px] border border-[var(--color-gold)]/30 bg-gradient-to-b from-[rgba(30,22,16,0.85)] to-[rgba(20,14,10,0.9)] text-[13px] font-bold text-[var(--color-gold)] font-[family-name:var(--font-noto-serif)] hover:border-[var(--color-gold)]/70 active:scale-[0.98] transition-all whitespace-nowrap"
               >
                 {countdown > 0 ? `${countdown}s` : status === "sending" ? "发送中..." : "获取验证码"}
               </button>
@@ -152,8 +153,8 @@ export default function AuthPage() {
             type="button"
             onClick={handleLogin}
             disabled={isLoading || mobile.length !== 11 || code.length !== 6}
-            style={{ opacity: isLoading ? 0.5 : 1 }}
-            className="w-full h-[50px] rounded-[10px] border border-[var(--color-gold)] bg-gradient-to-b from-[rgba(30,22,16,0.85)] to-[rgba(20,14,10,0.9)] text-[18px] font-bold text-[var(--color-gold)] font-[family-name:var(--font-noto-serif)] hover:border-[var(--color-gold)]/70 active:scale-[0.98] transition-all disabled:opacity-40 disabled:pointer-events-none"
+            style={{ opacity: isLoading ? 0.5 : (mobile.length === 11 && code.length === 6) ? 1 : 0.4 }}
+            className="w-full h-[50px] rounded-[10px] border border-[var(--color-gold)] bg-gradient-to-b from-[rgba(30,22,16,0.85)] to-[rgba(20,14,10,0.9)] text-[18px] font-bold text-[var(--color-gold)] font-[family-name:var(--font-noto-serif)] hover:border-[var(--color-gold)]/70 active:scale-[0.98] transition-all"
           >
             {status === "loggingIn" ? "登录中..." : "登录"}
           </button>
