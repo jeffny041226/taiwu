@@ -189,11 +189,17 @@ export default function HomePage() {
         </div>
       </header>
 
-      {/* 斗蛐蛐 文案 */}
-      <div className="absolute left-0 right-0 z-[10] text-center" style={{ top: "calc(25% - 20px)" }}>
-        <h1 className="text-[48px] font-bold text-[var(--color-gold)] font-[family-name:var(--font-ma-shan)] tracking-[12px] drop-shadow-[0_2px_8px_rgba(0,0,0,0.6)]">
-          斗蛐蛐
-        </h1>
+      {/* 斗蛐蛐 标题 */}
+      <div className="absolute left-0 right-0 z-[10] flex justify-center" style={{ top: "calc(25% - 40px)" }}>
+        <Image
+          src="/assets/ui/title-logo.png"
+          alt="斗蛐蛐"
+          width={280}
+          height={100}
+          {...imgProps}
+          className="object-contain drop-shadow-[0_2px_8px_rgba(0,0,0,0.6)]"
+          priority
+        />
       </div>
 
       {/* Error */}
