@@ -8,7 +8,7 @@ import { LoadingOverlay } from "@/components/game/LoadingOverlay";
 import { CRICKET_SELECTION_TIMEOUT, TIER_COLORS, TRAIT_LABELS, TIER_LABELS, BATTLE_MODE, BATTLE_MODE_LABELS } from "@taiwu/shared/config/game";
 import { useCountdown } from "@/hooks/useCountdown";
 import { useWebSocket } from "@/hooks/useWebSocket";
-import { ensureAuth } from "@/lib/auth";
+import { ensureAuth, getLoginUrl } from "@/lib/auth";
 import { api } from "@/lib/api";
 import type { CricketTemplate, Tier } from "@taiwu/shared/types/cricket";
 
@@ -53,7 +53,7 @@ export default function RoomPage({ params }: { params: Promise<{ roomId: string 
   useEffect(() => {
     ensureAuth().then(async (auth) => {
       if (!auth) {
-        window.location.href = "/auth";
+        window.location.href = getLoginUrl();
         return;
       }
       setMyUid(auth.uid);

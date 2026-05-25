@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { MapleLeaves } from "@/components/game/MapleLeaves";
 import { useWebSocket } from "@/hooks/useWebSocket";
-import { ensureAuth } from "@/lib/auth";
+import { ensureAuth, getLoginUrl } from "@/lib/auth";
 
 const imgProps = { unoptimized: true };
 
@@ -44,7 +44,7 @@ function MatchmakeContent() {
   useEffect(() => {
     ensureAuth().then((auth) => {
       if (!auth) {
-        window.location.href = "/auth";
+        window.location.href = getLoginUrl();
         return;
       }
       setMyUid(auth.uid);

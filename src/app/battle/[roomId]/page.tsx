@@ -8,7 +8,7 @@ import { LoadingOverlay } from "@/components/game/LoadingOverlay";
 import { calcRoundResult, type BattleCalcInput } from "@taiwu/shared/lib/battle-calc";
 import { BLOCK_REDUCTION, AUTO_READY_DELAY, BATTLE_MODE, BATTLE_MODE_LABELS } from "@taiwu/shared/config/game";
 import { useWebSocket } from "@/hooks/useWebSocket";
-import { ensureAuth } from "@/lib/auth";
+import { ensureAuth, getLoginUrl } from "@/lib/auth";
 import { api } from "@/lib/api";
 import type { CricketTemplate } from "@taiwu/shared/types/cricket";
 
@@ -170,7 +170,7 @@ export default function BattlePage({ params }: { params: Promise<{ roomId: strin
   useEffect(() => {
     ensureAuth().then((auth) => {
       if (!auth) {
-        window.location.href = "/auth";
+        window.location.href = getLoginUrl();
         return;
       }
       setMyUid(auth.uid);

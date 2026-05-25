@@ -65,6 +65,13 @@ export function clearAuth(): void {
   localStorage.removeItem("nickName");
 }
 
+/** 获取外部登录 URL（h5.shuziwenbo.cn） */
+export function getLoginUrl(): string {
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || (typeof window !== "undefined" ? window.location.origin : "http://localhost:3000");
+  const callbackUrl = encodeURIComponent(`${baseUrl}/auth/callback`);
+  return `https://h5.shuziwenbo.cn/login?redirect_uri=${callbackUrl}`;
+}
+
 /** 退出登录 — 清除 auth 并跳转大厅 */
 export function logout(): void {
   clearAuth();
