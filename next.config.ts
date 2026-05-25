@@ -2,11 +2,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   transpilePackages: ["@taiwu/shared"],
-  allowedDevOrigins: [
-    "localhost",
-    "172.28.39.27",
-    ...(process.env.ALLOWED_DEV_ORIGINS?.split(",").map(s => s.trim()) ?? []),
-  ],
+  allowedDevOrigins: ["*"],
   images: {
     remotePatterns: [
       {
