@@ -5,8 +5,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 
 /**
  * 外部登录回调页
- * 接收 h5.shuziwenbo.cn 登录后回传的 token 参数，存入 localStorage 后跳转首页
- * 兼容 query string 和 hash fragment 两种回调方式
+ * 接收 h5.shuziwenbo.cn 登录后回传的 sz_t 参数（格式: ${token}_${uid}）
+ * 调用后端 /api/auth/callback 同步用户信息后跳转首页
  */
 function CallbackContent() {
   const router = useRouter();
@@ -17,32 +17,47 @@ function CallbackContent() {
     if (processed.current) return;
     processed.current = true;
 
-    // 先从 query string 读取
-    let token = searchParams.get("token") || searchParams.get("passport_token") || searchParams.get("access_token") || "";
-    let uid = searchParams.get("uid") || searchParams.get("passport_uid") || searchParams.get("user_id") || "";
-    let nickName = searchParams.get("nickName") || searchParams.get("nickname") || searchParams.get("user_name") || "";
+    const szT = searchParams.get("sz_t") || "";
 
-    // 如果 query string 没有，尝试从 hash fragment 读取（兼容#param=value格式）
-    if (!token && typeof window !== "undefined" && window.location.hash) {
-      const hash = window.location.hash.slice(1);
-      const hashParams = new URLSearchParams(hash);
-      token = hashParams.get("token") || hashParams.get("passport_token") || hashParams.get("access_token") || "";
-      uid = hashParams.get("uid") || hashParams.get("passport_uid") || hashParams.get("user_id") || "";
-      nickName = hashParams.get("nickName") || hashParams.get("nickname") || hashParams.get("user_name") || "";
+    if (!szT) {
+      console.warn("[AuthCallback] 缺少 sz_t 参数，直接跳转首页");
+      router.replace("/");
+      return;
     }
 
-    console.log("[AuthCallback] token:", token ? `${token.slice(0, 20)}...` : "无", "uid:", uid || "无");
-
-    if (token && uid) {
-      localStorage.setItem("passport_token", token);
-      localStorage.setItem("uid", uid);
-      localStorage.setItem("nickName", nickName || `玩家${uid.slice(-4)}`);
-      console.log("[AuthCallback] 登录成功，跳转首页");
-    } else {
-      console.warn("[AuthCallback] 缺少 token/uid 参数，直接跳转首页");
+    // sz_t 格式: ${token}_${uid}，取最后一个下划线分割
+    const lastUnderscore = szT.lastIndexOf("_");
+    if (lastUnderscore <= 0) {
+      console.warn("[AuthCallback] sz_t 格式错误:", szT);
+      router.replace("/");
+      return;
     }
 
-    router.replace("/");
+    const token = szT.slice(0, lastUnderscore);
+    const uid = szT.slice(lastUnderscore + 1);
+
+    console.log("[AuthCallback] sz_t 解析成功, uid:", uid);
+
+    // 调用后端同步用户信息
+    fetch("/api/auth/callback", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token, uid }),
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data.uid) {
+          localStorage.setItem("passport_token", token);
+          localStorage.setItem("uid", data.uid);
+          localStorage.setItem("nickName", data.nickName || "");
+          console.log("[AuthCallback] 登录成功，跳转首页");
+        }
+        router.replace("/");
+      })
+      .catch(() => {
+        console.warn("[AuthCallback] 后端同步失败，直接跳转");
+        router.replace("/");
+      });
   }, [router, searchParams]);
 
   return (

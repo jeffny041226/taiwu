@@ -2,10 +2,9 @@
 
 import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
-import Link from "next/link";
 import { LoadingOverlay } from "@/components/game/LoadingOverlay";
 import { useWebSocket } from "@/hooks/useWebSocket";
-import { ensureAuth, logout } from "@/lib/auth";
+import { ensureAuth, logout, getLoginUrl } from "@/lib/auth";
 
 const imgProps = { unoptimized: true };
 
@@ -139,6 +138,7 @@ export default function HomePage() {
     send("room:join", { roomId: roomCode.toUpperCase(), uid: myUid, nickName: "玩家" });
   };
 
+  const loginUrl = getLoginUrl();
   const isLoading = action === "creating" || action === "joining" || action === "practice";
 
   return (
@@ -171,18 +171,18 @@ export default function HomePage() {
               )}
             </div>
           ) : (
-            <Link href="/auth" className="text-[14px] text-white font-bold hover:text-white/80 font-[family-name:var(--font-noto-serif)] underline underline-offset-4">登录/注册</Link>
+            <a href={loginUrl} className="text-[14px] text-white font-bold hover:text-white/80 font-[family-name:var(--font-noto-serif)] underline underline-offset-4">登录/注册</a>
           )}
           {nickName && (
             <span className="text-[var(--color-text-primary)] text-base max-w-[160px] truncate font-[family-name:var(--font-noto-serif)]">{nickName}</span>
           )}
         </div>
         <div className="flex items-center gap-2">
-          <a href={myUid ? "/market" : "/auth"} className="h-11 px-2.5 flex items-center gap-1.5 rounded-lg border border-[var(--color-gold)]/25 bg-[rgba(197,160,89,0.06)] hover:bg-[rgba(197,160,89,0.12)] hover:border-[var(--color-gold)]/50 transition-all">
+          <a href={myUid ? "/market" : loginUrl} className="h-11 px-2.5 flex items-center gap-1.5 rounded-lg border border-[var(--color-gold)]/25 bg-[rgba(197,160,89,0.06)] hover:bg-[rgba(197,160,89,0.12)] hover:border-[var(--color-gold)]/50 transition-all">
             <Image src="/assets/ui/icons/icon-market.png" alt="虫市" width={24} height={24} {...imgProps} />
             <span className="text-[13px] text-white font-bold font-[family-name:var(--font-noto-serif)]">虫市</span>
           </a>
-          <a href={myUid ? "/backpack" : "/auth"} className="h-11 px-2.5 flex items-center gap-1.5 rounded-lg border border-[var(--color-gold)]/25 bg-[rgba(197,160,89,0.06)] hover:bg-[rgba(197,160,89,0.12)] hover:border-[var(--color-gold)]/50 transition-all">
+          <a href={myUid ? "/backpack" : loginUrl} className="h-11 px-2.5 flex items-center gap-1.5 rounded-lg border border-[var(--color-gold)]/25 bg-[rgba(197,160,89,0.06)] hover:bg-[rgba(197,160,89,0.12)] hover:border-[var(--color-gold)]/50 transition-all">
             <Image src="/assets/ui/icons/icon-backpack.png" alt="背包" width={24} height={24} {...imgProps} />
             <span className="text-[13px] text-white font-bold font-[family-name:var(--font-noto-serif)]">背包</span>
           </a>
@@ -209,9 +209,9 @@ export default function HomePage() {
 
       {/* Buttons */}
       <section className="absolute bottom-0 left-0 right-0 z-[10] flex flex-col items-center gap-3 px-4 pb-[110px]">
-        <a href={myUid ? "/matchmake" : "/auth"} className={btnClass + " inline-flex items-center justify-center border-[var(--color-gold)]/60 bg-gradient-to-b from-[rgba(197,160,89,0.15)] to-[rgba(20,14,10,0.9)]"}>匹配对战</a>
+        <a href={myUid ? "/matchmake" : loginUrl} className={btnClass + " inline-flex items-center justify-center border-[var(--color-gold)]/60 bg-gradient-to-b from-[rgba(197,160,89,0.15)] to-[rgba(20,14,10,0.9)]"}>匹配对战</a>
 
-        <button type="button" onClick={myUid ? handleCreateRoom : () => window.location.href = "/auth"} disabled={isLoading} className={btnClass}>开房对战</button>
+        <button type="button" onClick={myUid ? handleCreateRoom : () => window.location.href = loginUrl} disabled={isLoading} className={btnClass}>开房对战</button>
 
         {showJoinInput ? (
           <div className="flex gap-2 w-[342px]">
@@ -221,10 +221,10 @@ export default function HomePage() {
               className={`h-[50px] px-6 rounded-[10px] border border-[var(--color-gold)]/30 bg-gradient-to-b from-[rgba(30,22,16,0.85)] to-[rgba(20,14,10,0.9)] text-[18px] font-bold whitespace-nowrap flex items-center justify-center font-[family-name:var(--font-noto-serif)] ${roomCode.length === 5 ? "text-[#4a90d9] hover:border-[#4a90d9]/70" : "text-[var(--color-text-muted)] opacity-40 pointer-events-none"}`}>进入</button>
           </div>
         ) : (
-          <button type="button" onClick={myUid ? () => setShowJoinInput(true) : () => window.location.href = "/auth"} className={btnClass}>加入房间</button>
+          <button type="button" onClick={myUid ? () => setShowJoinInput(true) : () => window.location.href = loginUrl} className={btnClass}>加入房间</button>
         )}
 
-        <button type="button" onClick={myUid ? handlePractice : () => window.location.href = "/auth"} disabled={isLoading} className={btnClass}>训练</button>
+        <button type="button" onClick={myUid ? handlePractice : () => window.location.href = loginUrl} disabled={isLoading} className={btnClass}>训练</button>
       </section>
 
       <LoadingOverlay visible={isLoading} message={action === "creating" ? "创建房间中..." : action === "joining" ? "加入房间中..." : "启动训练中..."} />
