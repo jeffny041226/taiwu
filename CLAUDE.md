@@ -11,28 +11,36 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ```bash
 pnpm install                              # 安装全部依赖 (workspace)
 pnpm dev                                  # 同时启动前端+后端 (前端 port 3000, 后端 port 4000)
-cd packages/backend && pnpm dev            # 仅启动后端
+pnpm dev:frontend                         # 仅启动前端 (port 3000)
+pnpm dev:backend                          # 仅启动后端 (port 4000, 等同于 cd packages/backend && pnpm dev)
 pnpm build                                # 生产构建 (前端)
 pnpm lint                                 # ESLint 检查
-pnpm test                                 # Vitest 单元测试
-pnpm test -- --run                        # 单次运行测试 (非 watch)
+pnpm test                                 # Vitest 单元测试 (watch 模式, 暂无测试用例)
+pnpm test:run                             # 单次运行测试
 npx tsx scripts/upload-cricket-images.ts  # 上传蛐蛐图片到 Supabase Storage + 更新 DB image_key
 npx tsx scripts/gen-all.ts                # 重新生成本地素材占位图
-```
 
-后端单独启动注意：必须从 **项目根目录** 运行 `npx tsx packages/backend/src/index.ts`，因为 dotenv 路径相对于 cwd 解析。
+# 素材生成脚本 (scripts/)
+npx tsx scripts/generate-assets.ts        # 生成背景/UI 占位图
+npx tsx scripts/generate-lottie.ts        # 生成 Lottie 动画
+npx tsx scripts/generate-audio.ts         # 生成音频文件
+npx tsx scripts/gen-crickets.ts           # 生成蛐蛐图片
+npx tsx scripts/gen-avatar.ts             # 生成头像
+```
 
 ## 架构要点
 
 - **pnpm workspace monorepo** — 3 个包: 根(Next.js 前端)、`packages/backend`(Express+WS)、`packages/shared`(类型+逻辑)
 - **合并 HTTP+WS 后端** — 单进程 port 4000，Express 处理 REST `/api/*`，原生 `ws` 库 `noServer` 模式处理 `/ws/battle` 升级。Passport Token 验证在 WS 升级时通过 query param `token` 完成
-- **鉴权系统 — 山海 Passport** — 4 个端点: `POST /api/auth/send-code`(发短信)、`POST /api/auth/login`(验证码登录)、`POST /api/auth/verify`(Token验证)。万能验证码 `666666` 测试环境跳过 Passport。Token 有 5 分钟内存缓存。前端 `ensureAuth()` 返回 null 时受保护页面跳 `/auth`。localStorage 存 `passport_token` / `uid` / `nickName`
+- **鉴权系统 — 山海 Passport** — 4 个端点: `POST /api/auth/send-code`(发短信)、`POST /api/auth/login`(验证码登录)、`POST /api/auth/verify`(Token验证)。万能验证码 `666666` 测试环境跳过 Passport。Token 有 15 分钟内存缓存。前端 `ensureAuth()` 返回 null 时受保护页面跳 `/auth`。localStorage 存 `passport_token` / `uid` / `nickName`
 - **微信支付（服务商模式 H5）** — Mock/Real 双模式：配置占位符时自动走 mock（`confirmPay` 直接加次数），填入真实证书后走微信 V3 API（下单/回调/查单）。Mock 模式前端有支付确认弹窗
 - **Supabase 懒加载** — `getSupabase()` 返回 `SupabaseClient | null`；无 DB 时各路由走内存 fallback (`memory-store.ts`)。`requireSupabase()` 抛异常，仅需 DB 的端点用
 - **蛐蛐图片云端下发** — 图片上传到 Supabase Storage 公开 bucket `cricket-images`，`image_key` 列存公开 URL，通过 `/api/crickets/templates` 接口下发。前端用 API 返回的 `imageKey`，不再依赖硬编码本地路径
 - **前端页面路由** — `/`(大厅) `/auth`(登录) `/market`(虫市) `/backpack`(背包) `/room/[roomId]`(房间) `/battle/[roomId]`(战斗) `/matchmake`(匹配对战)。全部 `use client`
 - **战斗引擎共享** — 纯函数在 `packages/shared/src/lib/battle-calc.ts`，前后端统一调用
 - **游戏配置集中化** — 所有魔法数字在 `packages/shared/src/config/game.ts`，含 BATTLE_MODE(env 可覆盖: tag_team/best_of_3)
+- **CORS** — 开发环境允许所有 origin，支持 DELETE 方法和 Authorization 头
+- **素材路径集中管理** — `src/config/assets.ts` 是所有背景/UI/动画/音频/字体路径的唯一来源
 
 ### 项目结构
 
@@ -42,7 +50,8 @@ packages/backend/src/
   config/env.ts         # dotenv 加载 + 环境变量导出
   db/supabase.ts        # 懒加载 Supabase 客户端 (getSupabase/requireSupabase)
   lib/memory-store.ts   # 无 DB 时的内存蛐蛐/次数存储 (重启丢失)
-  middleware/auth.ts    # Passport Token Bearer 验证 → req.user (5min内存缓存)
+  lib/proxy-agent.ts    # HTTP 代理支持 (Passport API 调用用 PASSPORT_PROXY/HTTP_PROXY)
+  middleware/auth.ts    # Passport Token Bearer 验证 → req.user (15min内存缓存)
   middleware/cors.ts    # CORS 中间件
   middleware/error-handler.ts  # 统一错误处理
   services/passport.ts  # 山海 Passport API 客户端 (验证码/登录/校验)
@@ -73,14 +82,23 @@ src/lib/
   auth.ts               # ensureAuth/sendCode/loginWithCode/logout (passport_token)
   api.ts                # HTTP API 客户端 (auth/gacha/pay/crickets/user/room)
   ws-client.ts          # WSClient 类 (心跳+重连+事件派发)
+  audio-manager.ts      # Howler.js 封装 (BGM/SFX 管理, 缓存+淡入淡出+静音切换)
+  image-loader.ts       # S3 图片 URL 解析 + 本地 fallback (依赖 NEXT_PUBLIC_S3_BASE_URL)
+src/config/
+  assets.ts             # 素材路径集中配置 (背景/UI/动画/音频/字体)
 src/hooks/
   useWebSocket.ts       # React hook: send/on/off 事件模式
   useCountdown.ts       # 倒计时 hook
-src/components/         # UI + layout + game 组件
+  useAudio.ts           # audioManager 的 React hook 封装
+  useMapleLeaves.ts     # Canvas 2D 枫叶粒子特效
+src/components/         # game/ layout/ ui/ 三个子目录
 
 db/
   schema.sql            # 3表DDL (users, cricket_templates, user_crickets)
   seed.sql              # 20只蛐蛐种子数据
+  migration-001-variant-stats.sql  # 添加变体属性列
+  migration-002-gacha-chances.sql  # 添加 gacha_chances 列
+  update-image-keys.sql # 更新 image_key 为云端 URL
 scripts/
   upload-cricket-images.ts  # 上传图片到 Supabase Storage + 更新DB
   gen-all.ts            # 一键生成全部本地占位素材
@@ -104,11 +122,16 @@ WS:       升级时 ?token=xxx → 本地token? → 内存缓存? → passportSe
 |------|------|------|
 | C→S | room:create / room:join / room:practice | 创建/加入/训练房间 |
 | C→S | room:matchmake / room:matchmake.cancel | 匹配/取消匹配 |
-| C→S | battle:ready / battle:action / battle:nextRound | 选蛐蛐/出招/下一局 |
+| C→S | battle:ready / battle:action / battle:nextRound | 选蛐蛐/出招/下一局 (PvP需双方都发nextRound) |
 | C→S | battle:rematch | 训练模式再来一局 |
 | C→S | room:leave | 离开房间 |
+| C→S | ping | 心跳 |
+| S→C | connected | 连接成功确认 `{message: "已连接到斗蛐蛐对战服务器"}` |
+| S→C | pong | 心跳响应 |
 | S→C | room:created / room:joined / room:state | 房间状态 |
+| S→C | room:selectionStart | 选蛐蛐开始 `{timeout: number}` |
 | S→C | room:matched / room:matchmake.waiting / room:matchmake.timeout | 匹配结果 |
+| S→C | room:matchmake.cancelled | 取消匹配成功 |
 | S→C | battle:data / battle:roundResult / battle:roundWin / battle:gameOver | 战斗结算 |
 | S→C | battle:cricketChange | 换蛐蛐通知 |
 
@@ -117,6 +140,14 @@ WS:       升级时 ?token=xxx → 本地token? → 内存缓存? → passportSe
 动作: heavy_strike / feint / block / chirp，克制关系见 `COUNTER_MULTIPLIER`。
 特性: 6种 (fierce/swift/cunning/steadfast/tenacious/resonant)，在 `TRAIT_EFFECTS` 声明。
 对战模式: BATTLE_MODE — tag_team(车轮战,默认) / best_of_3(三局两胜)
+
+关键常量 (`packages/shared/src/config/game.ts`):
+- `DAMAGE_MULTIPLIER = 2` — 最终伤害倍率
+- `DAMAGE_CAP` — 重击上限 35% 最大HP，虚招上限 30%
+- `SPIRIT_FEAR_THRESHOLD = 10` — 气势差超过此值触发恐惧
+- `AUTO_READY_DELAY = 2500` — 回合间自动就绪延迟 (ms)
+- `WS_HEARTBEAT_INTERVAL = 20000` / `WS_PING_TIMEOUT = 10000` — WS 心跳
+- `ROOM_CLEANUP_DELAY = 5000` — 房间销毁延迟 (ms)
 
 ### 数据流
 
@@ -140,6 +171,30 @@ Real (WX_PAY_MOCK=false — 填入真实证书后):
   → 前端跳转h5_url → 微信拉起支付 → 支付完成微信回调notify_url
   → 微信跳回/market?pay_order=xxx → 前端轮询payStatus → 成功则自动抽笼
 ```
+
+## 环境变量
+
+### 前端 (`.env.local`)
+
+| 变量 | 说明 | 默认值 |
+|------|------|--------|
+| `NEXT_PUBLIC_S3_BASE_URL` | S3 图片基础 URL，用于 `image-loader.ts` 解析云端图片 | — |
+| `NEXT_PUBLIC_WS_PORT` | WebSocket 连接端口 | `4000` |
+
+### 后端 (`packages/backend/.env`)
+
+| 变量 | 说明 |
+|------|------|
+| `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` | Supabase 连接凭证 |
+| `PASSPORT_BASE_URL` | 山海 Passport API 地址 |
+| `PASSPORT_PROXY` / `HTTP_PROXY` / `HTTPS_PROXY` | HTTP 代理（内网调用 Passport 用） |
+| `WX_SP_APPID` / `WX_SP_MCHID` / `WX_SUB_MCHID` | 微信支付服务商模式商户参数 |
+| `WX_API_V3_KEY` | 微信支付 APIv3 密钥 |
+| `WX_CERT_SERIAL` / `WX_CERT_PRIVATE_KEY_PATH` | 微信支付证书配置 |
+| `WX_PAY_NOTIFY_URL` | 微信支付回调地址 |
+| `WX_PAY_MOCK` | 支付 Mock 开关（占位符时自动 true） |
+| `BATTLE_MODE` | 对战模式: `tag_team` / `best_of_3` |
+| `CORS_ORIGIN` | CORS 允许的 origin |
 
 ## 设计基准
 
