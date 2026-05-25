@@ -1,7 +1,7 @@
 import { PASSPORT_BASE_URL, PASSPORT_PLATFORM } from "../config/env";
 import { getProxyAgent } from "../lib/proxy-agent";
 
-interface ShuziwenboResponse<T = unknown> {
+interface PassportResponse<T = unknown> {
   code: number;
   msg?: string;
   message?: string;
@@ -11,6 +11,7 @@ interface ShuziwenboResponse<T = unknown> {
   nickname?: string;
   nickName?: string;
   avatar?: string;
+  mobile?: string;
 }
 
 /** 5 秒超时的 fetch 包装（支持 HTTP 代理） */
@@ -30,11 +31,8 @@ async function fetchWithTimeout(url: string, init?: RequestInit, timeoutMs = 500
   }
 }
 
-/** 文博 API 基础 URL */
-const API_BASE = "https://api.shuziwenbo.cn";
-
 /**
- * 山海 Passport API 客户端 — 后端代理 shuziwenbo.cn 登录接口
+ * 山海 Passport API 客户端 — 后端代理 passport.szwb.imgo.tv 接口
  */
 class PassportService {
   private baseUrl: string;
@@ -45,60 +43,77 @@ class PassportService {
     this.platform = PASSPORT_PLATFORM;
   }
 
-  /** 获取短信验证码 — 走 api.shuziwenbo.cn */
+  /** 获取短信验证码 */
   async getMobileCode(mobile: string, ip: string): Promise<void> {
-    const params = new URLSearchParams({ mobile, operation: "mobilecodelogin" });
-    const url = `${API_BASE}/mine/v2/getMobileCode?${params.toString()}`;
-    console.log("[Passport] 获取验证码:", url.replace(mobile, "***"));
+    const params = new URLSearchParams({
+      mobile,
+      operation: "mobilecodelogin",
+      platform: String(this.platform),
+      uip: ip,
+    });
+
+    const url = `${this.baseUrl}/intra/v1/api/getMobileCode?${params.toString()}`;
+    console.log("[Passport] 获取验证码:", mobile.replace(/(\d{3})\d{4}(\d{4})/, "$1****$2"));
 
     const res = await fetchWithTimeout(url);
-    const data: ShuziwenboResponse = await res.json();
+    const data: PassportResponse = await res.json();
 
     if (data.code === 200) return;
     throw new Error(data.msg || data.message || "发送验证码失败");
   }
 
-  /** 验证码登录 — 走 api.shuziwenbo.cn */
+  /** 验证码登录 */
   async mobileCodeLogin(mobile: string, code: string): Promise<{
     token: string;
     uid: string;
     nickName: string;
     avatar?: string;
+    mobile?: string;
   }> {
-    const url = `${API_BASE}/mine/v1/mobileCodeLogin`;
+    const params = new URLSearchParams({
+      mobile,
+      mobileCode: code,
+      platform: String(this.platform),
+    });
+
+    const url = `${this.baseUrl}/intra/v1/api/mobileCodeLogin`;
     console.log("[Passport] 验证码登录:", mobile.replace(/(\d{3})\d{4}(\d{4})/, "$1****$2"));
 
     const res = await fetchWithTimeout(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ mobile, mobileCode: code }),
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: params.toString(),
     });
 
-    const data: ShuziwenboResponse = await res.json();
+    const data: PassportResponse = await res.json();
     console.log("[Passport] 验证码登录响应:", JSON.stringify(data).slice(0, 300));
 
     if (data.code !== 200) {
       throw new Error(data.msg || data.message || "登录失败");
     }
 
-    const token = data.token || (data.data as any)?.token || "";
-    const uid = String(data.uid || (data.data as any)?.uid || "");
-    const nickName = data.nickname || data.nickName || (data.data as any)?.nickname || (data.data as any)?.nickName || "";
-
-    return { token, uid, nickName, avatar: data.avatar };
+    return {
+      // data.token/uid 可能在根层级或嵌套在 data 字段内
+      token: data.token || (data.data as any)?.token || "",
+      uid: String(data.uid || (data.data as any)?.uid || ""),
+      nickName: data.nickname || data.nickName || (data.data as any)?.nickname || (data.data as any)?.nickName || "",
+      avatar: data.avatar || (data.data as any)?.avatar,
+      mobile: data.mobile,
+    };
   }
 
-  /** 校验 Token 有效性 — 走 api.shuziwenbo.cn */
+  /** 校验 Token 有效性 */
   async verifyToken(token: string): Promise<{ uid: string } | null> {
-    const url = `${API_BASE}/mine/v1/userInfo?token=${encodeURIComponent(token)}`;
+    const url = `${this.baseUrl}/intra/v1/api/verifyToken?token=${encodeURIComponent(token)}`;
     console.log("[Passport] 校验Token");
 
     try {
       const res = await fetchWithTimeout(url);
-      const data: ShuziwenboResponse = await res.json();
+      const data: PassportResponse = await res.json();
 
-      if (data.code === 200 && data.uid) {
-        return { uid: String(data.uid) };
+      const resUid = data.uid || (data.data as any)?.uid;
+      if (data.code === 200 && resUid) {
+        return { uid: String(resUid) };
       }
       return null;
     } catch {
@@ -106,25 +121,27 @@ class PassportService {
     }
   }
 
-  /** 根据 Token 获取用户信息 — 走 api.shuziwenbo.cn */
+  /** 根据 Token 获取用户信息 */
   async getTokenInfo(token: string): Promise<{
     uid: string;
     nickName: string;
     avatar?: string;
     mobile?: string;
   } | null> {
-    const url = `${API_BASE}/mine/v1/userInfo?token=${encodeURIComponent(token)}`;
+    const url = `${this.baseUrl}/intra/v1/api/getTokenInfo?token=${encodeURIComponent(token)}`;
     console.log("[Passport] 获取TokenInfo");
 
     try {
       const res = await fetchWithTimeout(url);
-      const data: ShuziwenboResponse = await res.json();
+      const data: PassportResponse = await res.json();
 
-      if (data.code === 200 && data.uid) {
+      const resUid = data.uid || (data.data as any)?.uid;
+      if (data.code === 200 && resUid) {
         return {
-          uid: String(data.uid),
-          nickName: data.nickname || data.nickName || (data.data as any)?.nickname || "",
-          avatar: data.avatar,
+          uid: String(resUid),
+          nickName: data.nickname || data.nickName || (data.data as any)?.nickname || (data.data as any)?.nickName || "",
+          avatar: data.avatar || (data.data as any)?.avatar,
+          mobile: data.mobile,
         };
       }
       return null;

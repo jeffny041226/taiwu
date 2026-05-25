@@ -45,16 +45,6 @@ export function authMiddleware(req: Request, res: Response, next: NextFunction):
 
   const token = authHeader.slice(7);
 
-  // 万能验证码产生的本地 token
-  if (token.startsWith("local-")) {
-    const cached = tokenCache.get(token);
-    if (cached) {
-      req.user = { uid: cached.uid, nickName: cached.nickName };
-      next();
-      return;
-    }
-  }
-
   // 检查缓存
   const cached = tokenCache.get(token);
   if (cached) {

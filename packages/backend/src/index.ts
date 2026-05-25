@@ -60,13 +60,6 @@ server.on("upgrade", (request, socket, head) => {
       return;
     }
 
-    // 本地 token（万能验证码产生）
-    if (token.startsWith("local-")) {
-      const cached = tokenCache.get(token);
-      handleUpgrade(cached ? { uid: cached.uid, nickName: cached.nickName } : null);
-      return;
-    }
-
     // 检查缓存
     const cached = tokenCache.get(token);
     if (cached) {
