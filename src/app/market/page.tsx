@@ -30,6 +30,14 @@ export default function MarketPage() {
   const [showResults, setShowResults] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const [pendingPayment, setPendingPayment] = useState<{ orderId: string; amount: number } | null>(null);
+  const [showRedeemInput, setShowRedeemInput] = useState(false);
+  const [redeemCode, setRedeemCode] = useState("");
+  const [redeemPreview, setRedeemPreview] = useState<CricketTemplate | null>(null);
+  const [showRedeemConfirm, setShowRedeemConfirm] = useState(false);
+  const [redeemResult, setRedeemResult] = useState<GachaResult | null>(null);
+  const [showRedeemResult, setShowRedeemResult] = useState(false);
+  const [isRedeeming, setIsRedeeming] = useState(false);
+  const [redeemError, setRedeemError] = useState("");
 
   // Auth init + load chances
   useEffect(() => {
@@ -164,6 +172,47 @@ export default function MarketPage() {
     setResults([]);
   };
 
+  const handleRedeemPreview = async () => {
+    if (!redeemCode.trim()) {
+      setRedeemError("请输入兑换码");
+      return;
+    }
+    setRedeemError("");
+    try {
+      const data = await api.previewRedeemCode(redeemCode.trim());
+      if (data.is_used) {
+        setRedeemError("该兑换码已被使用");
+        return;
+      }
+      setRedeemPreview(data.template);
+      setShowRedeemInput(false);
+      setShowRedeemConfirm(true);
+    } catch (e: any) {
+      setRedeemError(e.message || "无效的兑换码");
+    }
+  };
+
+  const handleRedeemUse = async () => {
+    setIsRedeeming(true);
+    try {
+      const data = await api.useRedeemCode(redeemCode.trim());
+      setRedeemResult(data.result as GachaResult);
+      setShowRedeemConfirm(false);
+      setShowRedeemResult(true);
+      setRedeemCode("");
+    } catch (e: any) {
+      setRedeemError(e.message || "兑换失败");
+      setShowRedeemConfirm(false);
+    } finally {
+      setIsRedeeming(false);
+    }
+  };
+
+  const closeRedeemResult = () => {
+    setShowRedeemResult(false);
+    setRedeemResult(null);
+  };
+
   return (
     <div className="relative w-full h-[100dvh] overflow-hidden bg-cover bg-center" style={{ backgroundImage: "linear-gradient(rgba(0,0,0,0.4), rgba(0,0,0,0.4)), url(/assets/backgrounds/bg-market.webp)" }}>
       <TopBar title="虫市" backHref="/" />
@@ -193,6 +242,12 @@ export default function MarketPage() {
           </button>
 
           {errorMsg && <p className="text-[13px] text-red-400 font-[family-name:var(--font-noto-serif)]">{errorMsg}</p>}
+
+          {/* Redeem button */}
+          <button type="button" onClick={() => { setShowRedeemInput(true); setRedeemCode(""); setRedeemError(""); }}
+            className="w-[175px] h-[42px] rounded-lg border border-[var(--color-gold)]/40 bg-gradient-to-b from-[rgba(30,22,16,0.85)] to-[rgba(20,14,10,0.9)] text-[16px] font-bold text-[var(--color-gold)] font-[family-name:var(--font-noto-serif)] hover:border-[var(--color-gold)]/70 active:scale-[0.98] transition-all mt-2">
+            兑换码
+          </button>
 
           {/* Probability table */}
           <div className="mt-6 w-[175px]">
@@ -257,6 +312,78 @@ export default function MarketPage() {
               })}
             </div>
             <button type="button" onClick={closeResults}
+              className="w-full h-[44px] rounded-lg border border-[var(--color-gold)]/30 bg-gradient-to-b from-[rgba(30,22,16,0.85)] to-[rgba(20,14,10,0.9)] text-[18px] font-bold text-[var(--color-gold)] font-[family-name:var(--font-noto-serif)] hover:border-[var(--color-gold)]/70 active:scale-[0.98] transition-all">
+              收下
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Redeem input overlay */}
+      {showRedeemInput && (
+        <div className="absolute inset-0 z-50 bg-[var(--color-bg-base)]/85 backdrop-blur-sm flex items-center justify-center px-4">
+          <div className="w-full max-w-[342px] rounded-2xl border border-[var(--color-gold)]/40 bg-[rgba(20,14,10,0.9)] flex flex-col gap-5 py-6 px-5">
+            <p className="text-[20px] font-bold text-[var(--color-gold)] font-[family-name:var(--font-ma-shan)] text-center">输入兑换码</p>
+            <input type="text" value={redeemCode} onChange={e => setRedeemCode(e.target.value.toUpperCase())}
+              placeholder="TW-XXXX-XXXX-XXXX"
+              className="w-full h-[44px] rounded-lg border border-[var(--color-gold)]/30 bg-[rgba(20,14,10,0.6)] text-[16px] text-[var(--color-text-primary)] font-[family-name:var(--font-noto-serif)] text-center placeholder:text-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-gold)]/70" />
+            {redeemError && <p className="text-[13px] text-red-400 text-center font-[family-name:var(--font-noto-serif)]">{redeemError}</p>}
+            <div className="flex gap-3">
+              <button type="button" onClick={() => { setShowRedeemInput(false); setRedeemCode(""); setRedeemError(""); }}
+                className="flex-1 h-[44px] rounded-lg border border-[var(--color-gold)]/20 text-[16px] text-[var(--color-text-secondary)] font-[family-name:var(--font-noto-serif)] hover:border-[var(--color-gold)]/40 active:scale-[0.98] transition-all">取消</button>
+              <button type="button" onClick={handleRedeemPreview}
+                className="flex-1 h-[44px] rounded-lg border border-[var(--color-gold)] bg-gradient-to-b from-[rgba(197,160,89,0.15)] to-[rgba(20,14,10,0.9)] text-[16px] font-bold text-[var(--color-gold)] font-[family-name:var(--font-noto-serif)] hover:border-[var(--color-gold)]/70 active:scale-[0.98] transition-all">确认</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Redeem confirm overlay */}
+      {showRedeemConfirm && redeemPreview && (
+        <div className="absolute inset-0 z-50 bg-[var(--color-bg-base)]/85 backdrop-blur-sm flex items-center justify-center px-4">
+          <div className="w-full max-w-[342px] rounded-2xl border border-[var(--color-gold)]/40 bg-[rgba(20,14,10,0.9)] flex flex-col gap-5 py-6 px-5">
+            <p className="text-[20px] font-bold text-[var(--color-gold)] font-[family-name:var(--font-ma-shan)] text-center">确认兑换</p>
+            <div className="flex flex-col items-center gap-2">
+              <Image src={redeemPreview.imageKey || `/assets/crickets/cricket-${String(((redeemPreview.id - 1) % 6) + 1).padStart(3, "0")}-thumb.png`} alt={redeemPreview.name} width={80} height={60} {...imgProps} className="object-contain" />
+              <p className="text-[18px] font-bold font-[family-name:var(--font-noto-serif)]" style={{ color: TIER_COLORS[redeemPreview.tier as Tier]?.text }}>{redeemPreview.name}</p>
+              <p className="text-[14px] text-[var(--color-text-secondary)] font-[family-name:var(--font-noto-serif)]">{redeemPreview.title}</p>
+              <span className="px-2 py-0.5 rounded text-[12px] font-[family-name:var(--font-noto-serif)]" style={{ color: TIER_COLORS[redeemPreview.tier as Tier]?.text, backgroundColor: (TIER_COLORS[redeemPreview.tier as Tier]?.text || "#a0a0a0") + "18" }}>{TIER_LABELS[redeemPreview.tier]}</span>
+            </div>
+            {redeemError && <p className="text-[13px] text-red-400 text-center font-[family-name:var(--font-noto-serif)]">{redeemError}</p>}
+            <div className="flex gap-3">
+              <button type="button" onClick={() => { setShowRedeemConfirm(false); setRedeemPreview(null); setRedeemError(""); }}
+                className="flex-1 h-[44px] rounded-lg border border-[var(--color-gold)]/20 text-[16px] text-[var(--color-text-secondary)] font-[family-name:var(--font-noto-serif)] hover:border-[var(--color-gold)]/40 active:scale-[0.98] transition-all">取消</button>
+              <button type="button" onClick={handleRedeemUse} disabled={isRedeeming}
+                className="flex-1 h-[44px] rounded-lg border border-[var(--color-gold)] bg-gradient-to-b from-[rgba(197,160,89,0.15)] to-[rgba(20,14,10,0.9)] text-[16px] font-bold text-[var(--color-gold)] font-[family-name:var(--font-noto-serif)] hover:border-[var(--color-gold)]/70 active:scale-[0.98] transition-all disabled:opacity-50">
+                {isRedeeming ? "兑换中..." : "确认兑换"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Redeem result overlay */}
+      {showRedeemResult && redeemResult && (
+        <div className="absolute inset-0 z-50 bg-[var(--color-bg-base)]/85 backdrop-blur-sm flex items-center justify-center px-4" onClick={closeRedeemResult}>
+          <div className="w-full max-w-[342px] rounded-2xl border border-[var(--color-gold)]/40 bg-[rgba(20,14,10,0.9)] flex flex-col gap-3 py-6 px-4" onClick={(e) => e.stopPropagation()}>
+            <p className="text-[20px] font-bold text-[var(--color-gold)] font-[family-name:var(--font-ma-shan)] text-center">兑换成功</p>
+            <div className="flex flex-col items-center p-2">
+              {(() => {
+                const tmpl = redeemResult.template;
+                if (!tmpl) return null;
+                const tierColor = TIER_COLORS[tmpl.tier as Tier]?.text || "#a0a0a0";
+                const imgSrc = tmpl.imageKey || `/assets/crickets/cricket-${String(((tmpl.id - 1) % 6) + 1).padStart(3, "0")}-thumb.png`;
+                return (
+                  <div className="flex flex-col items-center p-4 rounded-lg border border-[var(--color-gold)]/20 bg-[rgba(20,14,10,0.6)]">
+                    <Image src={imgSrc} alt={tmpl.name} width={100} height={80} {...imgProps} className="object-contain" />
+                    <span className="text-[18px] font-bold font-[family-name:var(--font-noto-serif)] mt-2" style={{ color: tierColor }}>{tmpl.name}</span>
+                    <span className="text-[13px] text-[var(--color-text-secondary)] font-[family-name:var(--font-noto-serif)]">{tmpl.title}</span>
+                    <span className="text-[12px] px-2 py-0.5 rounded font-[family-name:var(--font-noto-serif)] mt-1" style={{ color: tierColor, backgroundColor: tierColor + "18" }}>{TIER_LABELS[tmpl.tier]}</span>
+                  </div>
+                );
+              })()}
+            </div>
+            <button type="button" onClick={closeRedeemResult}
               className="w-full h-[44px] rounded-lg border border-[var(--color-gold)]/30 bg-gradient-to-b from-[rgba(30,22,16,0.85)] to-[rgba(20,14,10,0.9)] text-[18px] font-bold text-[var(--color-gold)] font-[family-name:var(--font-noto-serif)] hover:border-[var(--color-gold)]/70 active:scale-[0.98] transition-all">
               收下
             </button>

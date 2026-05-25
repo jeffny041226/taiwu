@@ -73,3 +73,45 @@ export function memoryDelete(uid: string, cricketId: number): boolean {
   store.set(uid, filtered);
   return true;
 }
+
+// ── 兑换码内存存储 ──
+
+interface MemoryRedeemCode {
+  id: number;
+  code: string;
+  template_id: number;
+  is_used: boolean;
+  used_by: string | null;
+  used_at: string | null;
+  created_at: string;
+}
+
+const redeemCodes = new Map<string, MemoryRedeemCode>();
+let nextRedeemId = 1;
+
+export function memoryCreateRedeemCode(code: string, templateId: number): MemoryRedeemCode {
+  const record: MemoryRedeemCode = {
+    id: nextRedeemId++,
+    code,
+    template_id: templateId,
+    is_used: false,
+    used_by: null,
+    used_at: null,
+    created_at: new Date().toISOString(),
+  };
+  redeemCodes.set(code, record);
+  return record;
+}
+
+export function memoryGetRedeemCode(code: string): MemoryRedeemCode | undefined {
+  return redeemCodes.get(code);
+}
+
+export function memoryUseRedeemCode(code: string, uid: string): MemoryRedeemCode | undefined {
+  const record = redeemCodes.get(code);
+  if (!record || record.is_used) return undefined;
+  record.is_used = true;
+  record.used_by = uid;
+  record.used_at = new Date().toISOString();
+  return record;
+}

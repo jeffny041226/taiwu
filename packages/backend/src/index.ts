@@ -12,6 +12,7 @@ import { cricketsRouter } from "./routes/crickets";
 import { gachaRouter } from "./routes/gacha";
 import { roomRouter } from "./routes/room";
 import { payRouter } from "./routes/pay";
+import { redeemRouter } from "./routes/redeem";
 import { handleMessage, handleClose } from "./ws/handler";
 import { getAllRooms, finishRoom, scheduleCleanup } from "./ws/room-manager";
 import { passportService } from "./services/passport";
@@ -28,6 +29,7 @@ app.use("/api/crickets", cricketsRouter);
 app.use("/api/gacha", gachaRouter);
 app.use("/api/room", roomRouter);
 app.use("/api/pay", payRouter);
+app.use("/api/redeem", redeemRouter);
 
 app.use(errorHandler);
 

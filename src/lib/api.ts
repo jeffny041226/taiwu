@@ -105,4 +105,25 @@ export const api = {
 
   /** 校验房间 */
   checkRoom: (roomId: string) => request<{ exists: boolean; phase: string }>(`/room/${roomId}`),
+
+  /** 生成兑换码（管理工具） */
+  generateRedeemCode: (templateId: number) =>
+    request<{ code: string; template: CricketTemplate }>("/redeem/generate", {
+      method: "POST",
+      body: JSON.stringify({ templateId }),
+    }),
+
+  /** 预览兑换码对应的蛐蛐 */
+  previewRedeemCode: (code: string) =>
+    request<{ template: CricketTemplate; is_used: boolean }>("/redeem/preview", {
+      method: "POST",
+      body: JSON.stringify({ code }),
+    }),
+
+  /** 使用兑换码 */
+  useRedeemCode: (code: string) =>
+    request<{ result: UserCricketResponse }>("/redeem/use", {
+      method: "POST",
+      body: JSON.stringify({ code }),
+    }),
 };
