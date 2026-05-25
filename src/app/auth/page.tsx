@@ -108,7 +108,6 @@ export default function AuthPage() {
                 }}
                 disabled={isLoading}
                 placeholder="请输入手机号"
-                maxLength={11}
                 className="flex-1 h-[48px] rounded-[10px] border border-[var(--color-gold)]/30 bg-[rgba(20,14,10,0.8)] px-4 text-[16px] text-[var(--color-text-primary)] font-[family-name:var(--font-noto-serif)] placeholder:text-[var(--color-text-muted)] outline-none focus:border-[var(--color-gold)]/70"
               />
               <button
@@ -138,7 +137,6 @@ export default function AuthPage() {
               }}
               disabled={isLoading}
               placeholder="请输入6位验证码"
-              maxLength={6}
               className="w-full h-[48px] rounded-[10px] border border-[var(--color-gold)]/30 bg-[rgba(20,14,10,0.8)] px-4 text-[16px] tracking-[6px] text-center text-[var(--color-text-primary)] font-[family-name:var(--font-noto-serif)] placeholder:text-[var(--color-text-muted)] placeholder:tracking-normal outline-none focus:border-[var(--color-gold)]/70"
             />
           </div>
