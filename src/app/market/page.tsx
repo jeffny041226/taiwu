@@ -196,12 +196,12 @@ export default function MarketPage() {
 
           {/* Probability table */}
           <div className="mt-6 w-[175px]">
-            <p className="text-[14px] text-[var(--color-text-secondary)] font-[family-name:var(--font-noto-serif)] mb-2">概率公示</p>
+            <p className="text-[14px] text-[var(--color-gold)] font-bold font-[family-name:var(--font-noto-serif)] mb-2">概率公示</p>
             <div className="space-y-1 text-[11px] font-[family-name:var(--font-noto-serif)]">
-              <div className="flex justify-between"><span style={{ color: "#a0a0a0" }}>普通</span><span style={{ color: "#4a90d9", fontWeight: "bold" }}>48%</span></div>
-              <div className="flex justify-between"><span style={{ color: "#4a90d9" }}>稀有</span><span style={{ color: "#4a90d9", fontWeight: "bold" }}>30%</span></div>
-              <div className="flex justify-between"><span style={{ color: "#8b5cf6" }}>史诗</span><span style={{ color: "#4a90d9", fontWeight: "bold" }}>15%</span></div>
-              <div className="flex justify-between"><span style={{ color: "#c5a059" }}>传说</span><span style={{ color: "#4a90d9", fontWeight: "bold" }}>7%</span></div>
+              <div className="flex items-center"><span style={{ color: "#a0a0a0", fontWeight: "bold" }}>普通</span><span style={{ color: "#f0a040", fontWeight: "bold", marginLeft: 50 }}>48%</span></div>
+              <div className="flex items-center"><span style={{ color: "#4a90d9", fontWeight: "bold" }}>稀有</span><span style={{ color: "#f0a040", fontWeight: "bold", marginLeft: 50 }}>30%</span></div>
+              <div className="flex items-center"><span style={{ color: "#8b5cf6", fontWeight: "bold" }}>史诗</span><span style={{ color: "#f0a040", fontWeight: "bold", marginLeft: 50 }}>15%</span></div>
+              <div className="flex items-center"><span style={{ color: "#c5a059", fontWeight: "bold" }}>传说</span><span style={{ color: "#f0a040", fontWeight: "bold", marginLeft: 50 }}>7%</span></div>
             </div>
           </div>
         </div>
