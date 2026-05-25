@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { TopBar } from "@/components/layout/TopBar";
 import { sendCode, loginWithCode } from "@/lib/auth";
@@ -27,6 +27,13 @@ export default function AuthPage() {
         return prev - 1;
       });
     }, 1000);
+  }, []);
+
+  // 组件卸载时清理定时器
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
   }, []);
 
   const handleSendCode = async () => {
@@ -93,6 +100,11 @@ export default function AuthPage() {
                   setMobile(v);
                   setErrorMsg("");
                   setStatus("idle");
+                  // 修改手机号时清除倒计时
+                  if (countdown > 0) {
+                    if (timerRef.current) clearInterval(timerRef.current);
+                    setCountdown(0);
+                  }
                 }}
                 disabled={isLoading}
                 placeholder="请输入手机号"
