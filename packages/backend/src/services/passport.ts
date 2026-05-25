@@ -1,4 +1,5 @@
 import { PASSPORT_BASE_URL, PASSPORT_PLATFORM } from "../config/env";
+import { getProxyAgent } from "../lib/proxy-agent";
 
 interface PassportResponse<T = unknown> {
   code: number;
@@ -11,6 +12,23 @@ interface PassportResponse<T = unknown> {
   nickName?: string;
   avatar?: string;
   mobile?: string;
+}
+
+/** 5 秒超时的 fetch 包装（支持 HTTP 代理） */
+async function fetchWithTimeout(url: string, init?: RequestInit, timeoutMs = 5000) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const dispatcher = getProxyAgent();
+    const res = await fetch(url, {
+      ...init,
+      signal: controller.signal,
+      ...(dispatcher ? { dispatcher } as any : {}),
+    });
+    return res;
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 /**
@@ -37,7 +55,7 @@ class PassportService {
     const url = `${this.baseUrl}/intra/v1/api/getMobileCode?${params.toString()}`;
     console.log("[Passport] 获取验证码:", url.replace(mobile, "***"));
 
-    const res = await fetch(url);
+    const res = await fetchWithTimeout(url);
     const data: PassportResponse = await res.json();
 
     if (data.code !== 200) {
@@ -62,7 +80,7 @@ class PassportService {
     const url = `${this.baseUrl}/intra/v1/api/mobileCodeLogin`;
     console.log("[Passport] 验证码登录:", mobile.replace(/(\d{3})\d{4}(\d{4})/, "$1****$2"));
 
-    const res = await fetch(url, {
+    const res = await fetchWithTimeout(url, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: params.toString(),
@@ -91,7 +109,7 @@ class PassportService {
     console.log("[Passport] 校验Token");
 
     try {
-      const res = await fetch(url);
+      const res = await fetchWithTimeout(url);
       const data: PassportResponse = await res.json();
 
       if (data.code === 200 && data.uid) {
@@ -114,7 +132,7 @@ class PassportService {
     console.log("[Passport] 获取TokenInfo");
 
     try {
-      const res = await fetch(url);
+      const res = await fetchWithTimeout(url);
       const data: PassportResponse = await res.json();
 
       if (data.code === 200 && data.uid) {
