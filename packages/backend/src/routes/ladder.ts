@@ -41,22 +41,24 @@ ladderRouter.get("/top100", authMiddleware, async (_req, res) => {
   res.json({ list: [] });
 });
 
-/** GET /api/ladder/position — 当前用户排名 + 上下各10人 */
+/** GET /api/ladder/position — 当前用户排名 + 上下各5人 */
 ladderRouter.get("/position", authMiddleware, async (req, res) => {
   const uid = req.user!.uid;
   const sb = getSupabase();
 
   if (sb) {
-    // 获取自己的战力
+    // 获取自己的战力和胜负
     const { data: me } = await sb
       .from("users")
-      .select("combat_power, nick_name, avatar")
+      .select("combat_power, nick_name, avatar, wins, losses")
       .eq("uid", uid)
       .single();
 
     const myPower = me?.combat_power ?? 1000;
     const myNickName = me?.nick_name || req.user!.nickName || "";
     const myAvatar = me?.avatar || null;
+    const myWins = me?.wins ?? 0;
+    const myLosses = me?.losses ?? 0;
 
     // 计算排名: 比当前用户战力高的人数
     const { count: higher } = await sb
@@ -67,12 +69,12 @@ ladderRouter.get("/position", authMiddleware, async (req, res) => {
     const myRank = (higher ?? 0) + 1;
 
     // 获取周围排名
-    const offset = Math.max(0, myRank - 11);
+    const offset = Math.max(0, myRank - 6);
     const { data: surrounding } = await sb
       .from("users")
       .select("uid, nick_name, avatar, combat_power")
       .order("combat_power", { ascending: false })
-      .range(offset, offset + 20);
+      .range(offset, offset + 10);
 
     const list = (surrounding || []).map((u: any, i: number) => ({
       rank: offset + i + 1,
@@ -88,6 +90,8 @@ ladderRouter.get("/position", authMiddleware, async (req, res) => {
       myCombatPower: myPower,
       myNickName,
       myAvatar,
+      myWins,
+      myLosses,
       list,
     });
     return;

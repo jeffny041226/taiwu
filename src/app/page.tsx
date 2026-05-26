@@ -186,6 +186,10 @@ export default function HomePage() {
             <Image src="/assets/ui/icons/icon-backpack.png" alt="背包" width={24} height={24} {...imgProps} />
             <span className="text-[13px] text-white font-bold font-[family-name:var(--font-noto-serif)]">背包</span>
           </a>
+          <a href={myUid ? "/ladder" : loginUrl} className="h-11 px-2.5 flex items-center gap-1.5 rounded-lg border border-[var(--color-gold)]/25 bg-[rgba(197,160,89,0.06)] hover:bg-[rgba(197,160,89,0.12)] hover:border-[var(--color-gold)]/50 transition-all">
+            <span className="text-[18px]">&#9876;</span>
+            <span className="text-[13px] text-white font-bold font-[family-name:var(--font-noto-serif)]">天梯</span>
+          </a>
         </div>
       </header>
 

@@ -130,7 +130,7 @@ export default function LadderPage() {
 
       <TopBar title="战力天梯" backHref="/"
         rightSlot={<button type="button" onClick={openTop100}
-          className="h-8 px-3 rounded-lg border border-[var(--color-gold)]/30 bg-[rgba(197,160,89,0.08)] text-[13px] font-bold text-[var(--color-gold)] font-[family-name:var(--font-noto-serif)] hover:border-[var(--color-gold)]/60 active:scale-95 transition-all">
+          className="h-8 px-4 rounded-lg border border-[var(--color-gold)]/30 bg-[rgba(197,160,89,0.08)] text-[13px] font-bold text-[var(--color-gold)] font-[family-name:var(--font-noto-serif)] hover:border-[var(--color-gold)]/60 active:scale-95 transition-all whitespace-nowrap">
           排行榜
         </button>}
       />
