@@ -97,9 +97,12 @@ authRouter.post("/login", async (req, res) => {
       const { error: insertError } = await sb.from("user_crickets").insert(inserts).select();
       if (insertError) console.error("[Auth] 插入起始蛐蛐失败:", insertError.message);
     } else {
-      // 更新昵称（以 Passport 为准）
-      if (data.nick_name !== nickName) {
-        await sb.from("users").update({ nick_name: nickName }).eq("uid", uid);
+      // 更新昵称和头像（以 Passport 为准）
+      const updates: Record<string, string> = {};
+      if (data.nick_name !== nickName) updates.nick_name = nickName;
+      if (avatar && data.avatar !== avatar) updates.avatar = avatar;
+      if (Object.keys(updates).length > 0) {
+        await sb.from("users").update(updates).eq("uid", uid);
       }
     }
   } else {
@@ -110,9 +113,9 @@ authRouter.post("/login", async (req, res) => {
   }
 
   // 缓存 passportToken → uid 到内存
-  tokenCache.set(passportToken, { uid, nickName });
+  tokenCache.set(passportToken, { uid, nickName, avatar: avatar || "" });
 
-  res.json({ token: passportToken, uid, nickName: nickName });
+  res.json({ token: passportToken, uid, nickName: nickName, avatar: avatar || "" });
 });
 
 /** POST /api/auth/verify — 验证 Token 有效性 */
@@ -129,7 +132,7 @@ authRouter.post("/verify", async (req, res) => {
   if (cached) {
     // 刷新缓存 TTL
     tokenCache.set(token, cached);
-    res.json({ uid: cached.uid, nickName: cached.nickName });
+    res.json({ uid: cached.uid, nickName: cached.nickName, avatar: cached.avatar || "" });
     return;
   }
 
@@ -140,14 +143,27 @@ authRouter.post("/verify", async (req, res) => {
     return;
   }
 
-  // 获取用户信息（可选）
+  // 获取用户最新信息（含头像）
   const info = await passportService.getTokenInfo(token);
   const nickName = info?.nickName || "";
+  const avatar = info?.avatar || "";
+
+  // 如果头像有更新，同步到本地 DB
+  if (avatar) {
+    const sb = getSupabase();
+    if (sb) {
+      const { data: dbUser } = await sb.from("users").select("avatar").eq("uid", verified.uid).single();
+      if (dbUser && dbUser.avatar !== avatar) {
+        await sb.from("users").update({ avatar }).eq("uid", verified.uid);
+        console.log("[Auth] 头像已同步更新:", verified.uid);
+      }
+    }
+  }
 
   // 缓存
-  tokenCache.set(token, { uid: verified.uid, nickName });
+  tokenCache.set(token, { uid: verified.uid, nickName, avatar });
 
-  res.json({ uid: verified.uid, nickName });
+  res.json({ uid: verified.uid, nickName, avatar });
 });
 
 /** POST /api/auth/callback — 外部登录回调，接收 sz_t 解析后的 token+uid，同步用户信息 */
@@ -175,7 +191,7 @@ authRouter.post("/callback", async (req, res) => {
   // 同步本地用户
   const sb = getSupabase();
   if (sb) {
-    const { data: existingUser } = await sb.from("users").select("uid, nick_name").eq("uid", uid).single();
+    const { data: existingUser } = await sb.from("users").select("uid, nick_name, avatar").eq("uid", uid).single();
 
     if (!existingUser) {
       // 新用户 → 创建 + 赠送起始蛐蛐
@@ -198,9 +214,12 @@ authRouter.post("/callback", async (req, res) => {
       const { error: insertError } = await sb.from("user_crickets").insert(inserts).select();
       if (insertError) console.error("[Auth] 插入起始蛐蛐失败:", insertError.message);
     } else {
-      // 已有用户 → 以 Passport 昵称为准更新
-      if (existingUser.nick_name !== nickName) {
-        await sb.from("users").update({ nick_name: nickName }).eq("uid", uid);
+      // 已有用户 → 更新昵称和头像
+      const updates: Record<string, string> = {};
+      if (existingUser.nick_name !== nickName) updates.nick_name = nickName;
+      if (avatar && existingUser.avatar !== avatar) updates.avatar = avatar;
+      if (Object.keys(updates).length > 0) {
+        await sb.from("users").update(updates).eq("uid", uid);
       }
     }
   } else {
@@ -211,7 +230,7 @@ authRouter.post("/callback", async (req, res) => {
   }
 
   // 缓存 token
-  tokenCache.set(token, { uid, nickName });
+  tokenCache.set(token, { uid, nickName, avatar });
 
-  res.json({ uid, nickName });
+  res.json({ uid, nickName, avatar });
 });

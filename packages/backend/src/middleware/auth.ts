@@ -4,7 +4,7 @@ import { passportService } from "../services/passport";
 declare global {
   namespace Express {
     interface Request {
-      user?: { uid: string; nickName: string };
+      user?: { uid: string; nickName: string; avatar?: string };
     }
   }
 }
@@ -12,6 +12,7 @@ declare global {
 interface CachedToken {
   uid: string;
   nickName: string;
+  avatar?: string;
 }
 
 /** 内存 Token 缓存 — 避免每次请求都调用 Passport verifyToken */
@@ -26,7 +27,7 @@ class TokenCache {
       this.cache.delete(token);
       return null;
     }
-    return { uid: entry.uid, nickName: entry.nickName };
+    return { uid: entry.uid, nickName: entry.nickName, avatar: entry.avatar };
   }
 
   set(token: string, info: CachedToken): void {
@@ -48,7 +49,7 @@ export function authMiddleware(req: Request, res: Response, next: NextFunction):
   // 检查缓存
   const cached = tokenCache.get(token);
   if (cached) {
-    req.user = { uid: cached.uid, nickName: cached.nickName };
+    req.user = { uid: cached.uid, nickName: cached.nickName, avatar: cached.avatar };
     // 刷新 TTL
     tokenCache.set(token, cached);
     next();
@@ -65,8 +66,8 @@ export function authMiddleware(req: Request, res: Response, next: NextFunction):
     // 获取用户信息用于缓存
     passportService.getTokenInfo(token).then(info => {
       const nickName = info?.nickName || "";
-      tokenCache.set(token, { uid: verified.uid, nickName });
-      req.user = { uid: verified.uid, nickName };
+      tokenCache.set(token, { uid: verified.uid, nickName, avatar: info?.avatar });
+      req.user = { uid: verified.uid, nickName, avatar: info?.avatar };
       next();
     }).catch(() => {
       tokenCache.set(token, { uid: verified.uid, nickName: "" });

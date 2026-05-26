@@ -13,19 +13,20 @@ export function isAuthenticated(): boolean {
 }
 
 /** 获取已存储的 auth 信息 (同步，可能为 null) */
-export function getAuth(): { uid: string; nickName: string; token: string } | null {
+export function getAuth(): { uid: string; nickName: string; token: string; avatar?: string } | null {
   const token = localStorage.getItem("passport_token");
   const uid = localStorage.getItem("uid");
   const nickName = localStorage.getItem("nickName");
+  const avatar = localStorage.getItem("avatar") || undefined;
   if (!token || !uid) return null;
-  return { uid, nickName: nickName ?? "", token };
+  return { uid, nickName: nickName ?? "", token, avatar };
 }
 
 /**
  * 确保已认证 — 如果有 localStorage token 则验证并返回；
  * 如果没有则返回 null（让页面决定是否跳转到 /auth）
  */
-export async function ensureAuth(): Promise<{ uid: string; nickName: string; token: string } | null> {
+export async function ensureAuth(): Promise<{ uid: string; nickName: string; token: string; avatar?: string } | null> {
   const token = localStorage.getItem("passport_token");
   const uid = localStorage.getItem("uid");
 
@@ -34,9 +35,10 @@ export async function ensureAuth(): Promise<{ uid: string; nickName: string; tok
   // Verify the token is still valid with backend
   try {
     const result = await api.authVerifyToken(token);
-    // Update nickName from backend (may have changed)
+    // Update nickName and avatar from backend (may have changed)
     localStorage.setItem("nickName", result.nickName);
-    return { uid: result.uid, nickName: result.nickName, token };
+    if (result.avatar) localStorage.setItem("avatar", result.avatar);
+    return { uid: result.uid, nickName: result.nickName, token, avatar: result.avatar };
   } catch {
     // Token expired or invalid — clear and return null
     clearAuth();
@@ -50,12 +52,13 @@ export async function sendCode(mobile: string): Promise<void> {
 }
 
 /** 验证码登录 */
-export async function loginWithCode(mobile: string, code: string): Promise<{ uid: string; nickName: string; token: string }> {
+export async function loginWithCode(mobile: string, code: string): Promise<{ uid: string; nickName: string; token: string; avatar?: string }> {
   const result = await api.authLoginWithCode(mobile, code);
   localStorage.setItem("passport_token", result.token);
   localStorage.setItem("uid", result.uid);
   localStorage.setItem("nickName", result.nickName);
-  return { uid: result.uid, nickName: result.nickName, token: result.token };
+  if (result.avatar) localStorage.setItem("avatar", result.avatar);
+  return result;
 }
 
 /** 清除认证信息 */
@@ -63,6 +66,7 @@ export function clearAuth(): void {
   localStorage.removeItem("passport_token");
   localStorage.removeItem("uid");
   localStorage.removeItem("nickName");
+  localStorage.removeItem("avatar");
 }
 
 /** 获取外部登录 URL（h5.shuziwenbo.cn 统一登录入口） */

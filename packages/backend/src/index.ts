@@ -79,7 +79,7 @@ server.on("upgrade", (request, socket, head) => {
       // 异步获取用户信息
       passportService.getTokenInfo(token).then(info => {
         const nickName = info?.nickName || "";
-        tokenCache.set(token, { uid: verified.uid, nickName });
+        tokenCache.set(token, { uid: verified.uid, nickName, avatar: info?.avatar });
         handleUpgrade({ uid: verified.uid, nickName });
       }).catch(() => {
         tokenCache.set(token, { uid: verified.uid, nickName: "" });

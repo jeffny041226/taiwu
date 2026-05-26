@@ -45,14 +45,14 @@ export const api = {
 
   /** 验证码登录 */
   authLoginWithCode: (mobile: string, code: string) =>
-    request<{ token: string; uid: string; nickName: string }>("/auth/login", {
+    request<{ token: string; uid: string; nickName: string; avatar?: string }>("/auth/login", {
       method: "POST",
       body: JSON.stringify({ mobile, code }),
     }),
 
   /** 验证 Passport Token */
   authVerifyToken: (token: string) =>
-    request<{ uid: string; nickName: string }>("/auth/verify", {
+    request<{ uid: string; nickName: string; avatar?: string }>("/auth/verify", {
       method: "POST",
       body: JSON.stringify({ token }),
     }),

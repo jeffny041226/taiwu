@@ -16,6 +16,7 @@ export default function HomePage() {
   const [myUid, setMyUid] = useState("");
   const [nickName, setNickName] = useState("");
   const [token, setToken] = useState("");
+  const [avatar, setAvatar] = useState("");
   const [showJoinInput, setShowJoinInput] = useState(false);
   const [roomCode, setRoomCode] = useState("");
   const [action, setAction] = useState<Action>("idle");
@@ -31,6 +32,7 @@ export default function HomePage() {
         setMyUid(auth.uid);
         setNickName(auth.nickName);
         setToken(auth.token);
+        if (auth.avatar) setAvatar(auth.avatar);
       }
     });
   }, []);
@@ -160,7 +162,7 @@ export default function HomePage() {
             /* 头像 click 切换退出按钮 */
             <div className="relative">
               <button type="button" onClick={() => setShowLogout(v => !v)} onBlur={() => setTimeout(() => setShowLogout(false), 200)} className="focus:outline-none">
-                <Image src="/assets/avatars/avatar-default.png" alt="头像" width={48} height={48} className="rounded-full border border-[var(--color-gold)]/50 cursor-pointer" {...imgProps} />
+                <Image src={avatar || "/assets/avatars/avatar-default.png"} alt="头像" width={48} height={48} className="rounded-full border border-[var(--color-gold)]/50 cursor-pointer object-cover" {...imgProps} />
               </button>
               {showLogout && (
                 <div className="absolute left-1/2 -translate-x-1/2 top-full mt-1 min-w-[80px] z-50">
