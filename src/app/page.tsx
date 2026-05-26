@@ -8,7 +8,7 @@ import { ensureAuth, logout, getLoginUrl } from "@/lib/auth";
 
 const imgProps = { unoptimized: true };
 
-const btnClass = "w-[342px] h-[50px] rounded-[10px] border border-[var(--color-gold)]/30 bg-gradient-to-b from-[rgba(30,22,16,0.85)] to-[rgba(20,14,10,0.9)] text-[20px] font-bold text-[var(--color-gold)] font-[family-name:var(--font-noto-serif)] hover:border-[var(--color-gold)]/70 hover:shadow-[0_0_12px_rgba(197,160,89,0.15)] active:scale-[0.98] transition-all disabled:opacity-40 disabled:pointer-events-none";
+const btnClass = "w-[342px] h-[50px] rounded-[10px] border border-[var(--color-gold)]/30 bg-gradient-to-b from-[rgba(30,22,16,0.85)] to-[rgba(20,14,10,0.9)] text-[20px] font-bold text-[var(--color-gold)] font-quanheng hover:border-[var(--color-gold)]/70 hover:shadow-[0_0_12px_rgba(197,160,89,0.15)] active:scale-[0.98] transition-all disabled:opacity-40 disabled:pointer-events-none";
 
 type Action = "idle" | "creating" | "joining" | "practice" | "error";
 
@@ -171,38 +171,39 @@ export default function HomePage() {
               )}
             </div>
           ) : (
-            <a href={loginUrl} className="text-[14px] text-white font-bold hover:text-white/80 font-[family-name:var(--font-noto-serif)] underline underline-offset-4">登录/注册</a>
+            <a href={loginUrl} className="text-[14px] text-white font-bold hover:text-white/80 font-quanheng underline underline-offset-4">登录/注册</a>
           )}
           {nickName && (
-            <span className="text-[var(--color-text-primary)] text-[13px] max-w-[160px] truncate font-[family-name:var(--font-noto-serif)]">{nickName}</span>
+            <span className="text-[var(--color-text-primary)] text-[13px] max-w-[160px] truncate font-quanheng">{nickName}</span>
           )}
         </div>
         <div className="flex items-center gap-2 whitespace-nowrap">
           <a href={myUid ? "/market" : loginUrl} className="h-11 px-2.5 flex items-center gap-1.5 rounded-lg border border-[var(--color-gold)]/25 bg-[rgba(197,160,89,0.06)] hover:bg-[rgba(197,160,89,0.12)] hover:border-[var(--color-gold)]/50 transition-all shrink-0">
             <Image src="/assets/ui/icons/icon-market.png" alt="虫市" width={24} height={24} className="shrink-0" {...imgProps} />
-            <span className="text-[13px] text-white font-bold font-[family-name:var(--font-noto-serif)]">虫市</span>
+            <span className="text-[13px] text-white font-bold font-quanheng">虫市</span>
           </a>
           <a href={myUid ? "/backpack" : loginUrl} className="h-11 px-2.5 flex items-center gap-1.5 rounded-lg border border-[var(--color-gold)]/25 bg-[rgba(197,160,89,0.06)] hover:bg-[rgba(197,160,89,0.12)] hover:border-[var(--color-gold)]/50 transition-all shrink-0">
             <Image src="/assets/ui/icons/icon-backpack.png" alt="背包" width={24} height={24} className="shrink-0" {...imgProps} />
-            <span className="text-[13px] text-white font-bold font-[family-name:var(--font-noto-serif)]">背包</span>
+            <span className="text-[13px] text-white font-bold font-quanheng">背包</span>
           </a>
           <a href={myUid ? "/ladder" : loginUrl} className="h-11 px-2.5 flex items-center gap-1.5 rounded-lg border border-[var(--color-gold)]/25 bg-[rgba(197,160,89,0.06)] hover:bg-[rgba(197,160,89,0.12)] hover:border-[var(--color-gold)]/50 transition-all shrink-0">
             <span className="text-[18px]">&#9876;</span>
-            <span className="text-[13px] text-white font-bold font-[family-name:var(--font-noto-serif)]">天梯</span>
+            <span className="text-[13px] text-white font-bold font-quanheng">天梯</span>
           </a>
         </div>
       </header>
 
       {/* 斗蛐蛐 标题 */}
-      <div className="absolute left-0 right-0 z-[10] text-center" style={{ top: "calc(25% - 30px)" }}>
-        <h1 className="text-[56px] leading-[1.2] font-[family-name:'QuanHengDuLiang',var(--font-ma-shan)] tracking-[8px] drop-shadow-[0_2px_8px_rgba(0,0,0,0.6)]">
-          <span className="text-[var(--color-gold)]">斗</span>
-          <span className="text-[var(--color-gold)]">蛐</span>
-          <span className="text-[var(--color-gold)]">蛐</span>
-        </h1>
-        <p className="mt-1 text-[14px] text-[var(--color-gold-dim)] font-[family-name:var(--font-noto-serif)] tracking-[8px]">
-          巅峰至臻对战版
-        </p>
+      <div className="absolute left-0 right-0 z-[10] flex justify-center" style={{ top: "calc(25% - 40px)" }}>
+        <Image
+          src="/assets/ui/title-logo.png"
+          alt="斗蛐蛐"
+          width={280}
+          height={100}
+          {...imgProps}
+          className="object-contain drop-shadow-[0_2px_8px_rgba(0,0,0,0.6)]"
+          priority
+        />
       </div>
 
       {/* Error */}

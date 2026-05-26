@@ -10,6 +10,7 @@
 }
 
 @theme {
+  --font-quanheng: "QuanHengDuLiang", "Noto Serif SC", serif;
   --color-bg-base: #0a0807;
   --color-gold: #c5a059;
   --color-gold-dim: #8a7040;
