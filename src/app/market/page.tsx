@@ -217,18 +217,29 @@ export default function MarketPage() {
     <div className="relative w-full h-[100dvh] overflow-hidden bg-cover bg-center" style={{ backgroundImage: "linear-gradient(rgba(0,0,0,0.4), rgba(0,0,0,0.4)), url(/assets/backgrounds/bg-market.webp)" }}>
       <TopBar title="虫市" backHref="/" />
 
-      <div className="relative z-10 flex h-[calc(100dvh-55px)]">
-        {/* Left: Gacha Display */}
-        <div className="w-1/2 flex flex-col items-center justify-center px-2">
-          <div className="w-[120px] h-[120px] rounded-xl bg-[var(--color-bg-base)]/40 border border-[var(--color-gold)]/15 flex flex-col items-center justify-center">
-            <div className="text-[var(--color-gold)] text-4xl mb-2 font-[family-name:var(--font-ma-shan)]">笼</div>
-            <p className="text-[14px] text-[var(--color-text-secondary)] font-[family-name:var(--font-ma-shan)]">开笼觅良虫</p>
+      <div className="relative z-10 flex flex-col items-center h-[calc(100dvh-55px)] px-4">
+
+        {/* 笼 + 概率 并列 — 顶部 */}
+        <div className="pt-[calc(16px+100px)]">
+          <div className="flex items-start gap-6">
+            <div className="w-[120px] h-[120px] rounded-xl bg-[var(--color-bg-base)]/40 border border-[var(--color-gold)]/15 flex flex-col items-center justify-center shrink-0">
+              <div className="text-[var(--color-gold)] text-4xl mb-2 font-[family-name:var(--font-ma-shan)]">笼</div>
+              <p className="text-[14px] text-[var(--color-text-secondary)] font-[family-name:var(--font-ma-shan)]">开笼觅良虫</p>
+            </div>
+            <div>
+              <p className="text-[14px] text-[var(--color-gold)] font-bold font-[family-name:var(--font-noto-serif)] mb-2">概率公示</p>
+              <div className="space-y-1 text-[11px] font-[family-name:var(--font-noto-serif)]">
+                <div className="flex items-center"><span style={{ color: "#a0a0a0", fontWeight: "bold" }}>普通</span><span style={{ color: "#f0a040", fontWeight: "bold", marginLeft: 30 }}>48%</span></div>
+                <div className="flex items-center"><span style={{ color: "#4a90d9", fontWeight: "bold" }}>稀有</span><span style={{ color: "#f0a040", fontWeight: "bold", marginLeft: 30 }}>30%</span></div>
+                <div className="flex items-center"><span style={{ color: "#8b5cf6", fontWeight: "bold" }}>史诗</span><span style={{ color: "#f0a040", fontWeight: "bold", marginLeft: 30 }}>15%</span></div>
+                <div className="flex items-center"><span style={{ color: "#c5a059", fontWeight: "bold" }}>传说</span><span style={{ color: "#f0a040", fontWeight: "bold", marginLeft: 30 }}>7%</span></div>
+              </div>
+            </div>
           </div>
         </div>
 
-        {/* Right: Action Panel */}
-        <div className="w-1/2 flex flex-col items-center pt-12 px-2 gap-[14px]">
-
+        {/* 底部按钮区域 */}
+        <div className="mt-auto flex flex-col items-center gap-3 pb-8 -translate-y-[100px]">
           {([1, 5, 10] as const).map((count) => (
             <button key={count} type="button" onClick={() => setSelectedCount(count)}
               className={selectedCount === count ? gachaBtnActive : gachaBtnInactive}>
@@ -243,22 +254,10 @@ export default function MarketPage() {
 
           {errorMsg && <p className="text-[13px] text-red-400 font-[family-name:var(--font-noto-serif)]">{errorMsg}</p>}
 
-          {/* Redeem button */}
           <button type="button" onClick={() => { setShowRedeemInput(true); setRedeemCode(""); setRedeemError(""); }}
-            className="w-[175px] h-[42px] rounded-lg border border-[var(--color-gold)]/40 bg-gradient-to-b from-[rgba(30,22,16,0.85)] to-[rgba(20,14,10,0.9)] text-[16px] font-bold text-[var(--color-gold)] font-[family-name:var(--font-noto-serif)] hover:border-[var(--color-gold)]/70 active:scale-[0.98] transition-all mt-2">
+            className="w-[175px] h-[42px] rounded-lg border border-[var(--color-gold)]/40 bg-gradient-to-b from-[rgba(30,22,16,0.85)] to-[rgba(20,14,10,0.9)] text-[16px] font-bold text-[var(--color-gold)] font-[family-name:var(--font-noto-serif)] hover:border-[var(--color-gold)]/70 active:scale-[0.98] transition-all">
             兑换码
           </button>
-
-          {/* Probability table */}
-          <div className="mt-6 w-[175px]">
-            <p className="text-[14px] text-[var(--color-gold)] font-bold font-[family-name:var(--font-noto-serif)] mb-2">概率公示</p>
-            <div className="space-y-1 text-[11px] font-[family-name:var(--font-noto-serif)]">
-              <div className="flex items-center"><span style={{ color: "#a0a0a0", fontWeight: "bold" }}>普通</span><span style={{ color: "#f0a040", fontWeight: "bold", marginLeft: 50 }}>48%</span></div>
-              <div className="flex items-center"><span style={{ color: "#4a90d9", fontWeight: "bold" }}>稀有</span><span style={{ color: "#f0a040", fontWeight: "bold", marginLeft: 50 }}>30%</span></div>
-              <div className="flex items-center"><span style={{ color: "#8b5cf6", fontWeight: "bold" }}>史诗</span><span style={{ color: "#f0a040", fontWeight: "bold", marginLeft: 50 }}>15%</span></div>
-              <div className="flex items-center"><span style={{ color: "#c5a059", fontWeight: "bold" }}>传说</span><span style={{ color: "#f0a040", fontWeight: "bold", marginLeft: 50 }}>7%</span></div>
-            </div>
-          </div>
         </div>
       </div>
 
