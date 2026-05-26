@@ -215,7 +215,7 @@ export default function HomePage() {
 
       {/* Buttons */}
       <section className="absolute bottom-0 left-0 right-0 z-[10] flex flex-col items-center gap-3 px-4 pb-[110px]">
-        <a href={myUid ? "/matchmake" : loginUrl} className={btnClass + " inline-flex items-center justify-center bg-gradient-to-b from-[rgba(197,160,89,0.15)] to-[rgba(20,14,10,0.9)]"}>匹配对战</a>
+        <a href={myUid ? "/matchmake" : loginUrl} className={btnClass + " inline-flex items-center justify-center bg-[rgba(197,160,89,0.12)]"}>匹配对战</a>
 
         <button type="button" onClick={myUid ? handleCreateRoom : () => window.location.href = loginUrl} disabled={isLoading} className={btnClass}>开房对战</button>
 
