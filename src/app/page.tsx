@@ -10,15 +10,13 @@ const imgProps = { unoptimized: true };
 
 const btnClass = "w-[342px] h-[50px] rounded-[10px] bg-gradient-to-b from-[rgba(30,22,16,0.85)] to-[rgba(20,14,10,0.9)] text-[20px] font-bold text-[var(--color-gold)] font-quanheng active:scale-[0.98] transition-all disabled:opacity-40 disabled:pointer-events-none";
 
-type Action = "idle" | "creating" | "joining" | "practice" | "error";
+type Action = "idle" | "practice" | "error";
 
 export default function HomePage() {
   const [myUid, setMyUid] = useState("");
   const [nickName, setNickName] = useState("");
   const [token, setToken] = useState("");
   const [avatar, setAvatar] = useState("");
-  const [showJoinInput, setShowJoinInput] = useState(false);
-  const [roomCode, setRoomCode] = useState("");
   const [action, setAction] = useState<Action>("idle");
   const [errorMsg, setErrorMsg] = useState("");
   const [showLogout, setShowLogout] = useState(false);
@@ -68,14 +66,6 @@ export default function HomePage() {
       }
     };
 
-    const handleJoined = (payload: unknown) => {
-      const p = payload as { roomId: string };
-      if (p.roomId) {
-        setCreatedRoomId(p.roomId);
-        setAction("idle");
-      }
-    };
-
     const handleError = (payload: unknown) => {
       const p = payload as { message?: string };
       setErrorMsg(p.message || "操作失败");
@@ -85,33 +75,24 @@ export default function HomePage() {
 
     on("room:created", handleCreatedOrState);
     on("room:state", handleCreatedOrState);
-    on("room:joined", handleJoined);
     on("room:error", handleError);
 
     return () => {
       off("room:created", handleCreatedOrState);
       off("room:state", handleCreatedOrState);
-      off("room:joined", handleJoined);
       off("room:error", handleError);
     };
   }, [wsReady]);
 
-  // Navigate on room creation/join
+  // Navigate on room creation (practice mode)
   useEffect(() => {
     if (!createdRoomId) return;
     if (isPracticeMode) {
       window.location.href = `/room/${createdRoomId}?uid=${myUid}&mode=practice`;
-    } else {
-      window.location.href = `/room/${createdRoomId}?uid=${myUid}`;
     }
   }, [createdRoomId, isPracticeMode, myUid]);
 
   useEffect(() => { setIsPracticeMode(false); }, []);
-
-  const handleCreateRoom = () => {
-    setAction("creating"); setErrorMsg("");
-    send("room:create", { uid: myUid, nickName: "玩家" });
-  };
 
   const handlePractice = () => {
     setErrorMsg("");
@@ -123,7 +104,6 @@ export default function HomePage() {
     setAction("practice");
     setIsPracticeMode(true);
     send("room:practice", { uid: myUid, nickName: "玩家" });
-    // 6秒超时保护
     const timer = setTimeout(() => {
       setAction(prev => prev === "practice" ? "error" : prev);
       setErrorMsg("训练启动超时");
@@ -134,14 +114,8 @@ export default function HomePage() {
     setTimeout(() => { off("room:created", handleResp); off("room:state", handleResp); if (!createdRoomId) { setAction("idle"); } }, 7000);
   };
 
-  const handleJoinRoom = () => {
-    if (roomCode.length !== 5) return;
-    setAction("joining"); setErrorMsg("");
-    send("room:join", { roomId: roomCode.toUpperCase(), uid: myUid, nickName: "玩家" });
-  };
-
   const loginUrl = getLoginUrl();
-  const isLoading = action === "creating" || action === "joining" || action === "practice";
+  const isLoading = action === "practice";
 
   return (
     <div className="relative w-full h-[100dvh] overflow-hidden">
@@ -154,12 +128,10 @@ export default function HomePage() {
         priority
       />
 
-
       {/* Top Bar */}
       <header className="relative z-[10] flex items-center justify-between px-4 h-[60px]">
         <div className="flex items-center gap-3">
           {nickName ? (
-            /* 头像 click 切换退出按钮 */
             <div className="relative">
               <button type="button" onClick={() => setShowLogout(v => !v)} onBlur={() => setTimeout(() => setShowLogout(false), 200)} className="focus:outline-none">
                 <Image src={avatar || "/assets/avatars/avatar-default.png"} alt="头像" width={48} height={48} className="rounded-full border border-[var(--color-gold)]/50 cursor-pointer object-cover" {...imgProps} />
@@ -217,23 +189,14 @@ export default function HomePage() {
       <section className="absolute bottom-0 left-0 right-0 z-[10] flex flex-col items-center gap-3 px-4 pb-[110px]">
         <a href={myUid ? "/matchmake" : loginUrl} className={btnClass + " inline-flex items-center justify-center bg-[rgba(197,160,89,0.12)]"}>匹配对战</a>
 
-        <button type="button" onClick={myUid ? handleCreateRoom : () => window.location.href = loginUrl} disabled={isLoading} className={btnClass}>开房对战</button>
+        <a href={myUid ? "/room/create" : loginUrl} className={btnClass + " inline-flex items-center justify-center"}>开房对战</a>
 
-        {showJoinInput ? (
-          <div className="flex gap-2 w-[342px]">
-            <input type="text" value={roomCode} onChange={(e) => setRoomCode(e.target.value.toUpperCase())} maxLength={5} placeholder="输入房间号"
-              className="flex-1 h-[50px] rounded-[10px] border border-[var(--color-gold)]/30 bg-[rgba(20,14,10,0.9)] px-4 text-center text-[20px] tracking-[6px] text-[var(--color-text-primary)] font-[family-name:var(--font-noto-serif)] placeholder:text-[var(--color-text-muted)] outline-none focus:border-[var(--color-gold)]/70 uppercase" />
-            <button type="button" onClick={handleJoinRoom} disabled={roomCode.length !== 5 || isLoading}
-              className={`h-[50px] px-6 rounded-[10px] bg-gradient-to-b from-[rgba(30,22,16,0.85)] to-[rgba(20,14,10,0.9)] text-[18px] font-bold whitespace-nowrap flex items-center justify-center font-[family-name:var(--font-noto-serif)] ${roomCode.length === 5 ? "text-[#4a90d9]" : "text-[var(--color-text-muted)] opacity-40 pointer-events-none"}`}>进入</button>
-          </div>
-        ) : (
-          <button type="button" onClick={myUid ? () => setShowJoinInput(true) : () => window.location.href = loginUrl} className={btnClass}>加入房间</button>
-        )}
+        <a href={myUid ? "/room/create" : loginUrl} className={btnClass + " inline-flex items-center justify-center"}>加入房间</a>
 
         <button type="button" onClick={myUid ? handlePractice : () => window.location.href = loginUrl} disabled={isLoading} className={btnClass}>训练</button>
       </section>
 
-      <LoadingOverlay visible={isLoading} message={action === "creating" ? "创建房间中..." : action === "joining" ? "加入房间中..." : "启动训练中..."} />
+      <LoadingOverlay visible={isLoading} message="启动训练中..." />
     </div>
   );
 }

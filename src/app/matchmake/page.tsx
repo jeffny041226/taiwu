@@ -141,7 +141,10 @@ function MatchmakeContent() {
           <Image src="/assets/avatars/avatar-default.png" alt="头像" width={48} height={48} className="rounded-full border border-[var(--color-gold)]/50" {...imgProps} />
           <span className="text-[var(--color-text-primary)] text-base truncate font-[family-name:var(--font-noto-serif)]">{myNickName}</span>
         </div>
-
+        <a href="/room/create" className="h-9 px-3 rounded-lg border border-[var(--color-gold)]/25 bg-[rgba(197,160,89,0.06)] hover:bg-[rgba(197,160,89,0.12)] text-[13px] text-[var(--color-gold)] font-bold font-[family-name:var(--font-noto-serif)] flex items-center gap-1 transition-all">
+          <span>+</span>
+          <span>加入房间</span>
+        </a>
       </header>
 
       <section className="relative z-[10] flex flex-col items-center justify-center px-4" style={{ height: "calc(100dvh - 60px)" }}>
