@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { TopBar } from "@/components/layout/TopBar";
 import { LoadingOverlay } from "@/components/game/LoadingOverlay";
@@ -13,7 +12,6 @@ const btnClass =
   "w-[342px] h-[50px] rounded-[10px] border border-[var(--color-gold)]/30 bg-gradient-to-b from-[rgba(30,22,16,0.85)] to-[rgba(20,14,10,0.9)] text-[20px] font-bold text-[var(--color-gold)] font-quanheng active:scale-[0.98] transition-all disabled:opacity-40 disabled:pointer-events-none";
 
 export default function RoomCreatePage() {
-  const router = useRouter();
   const [myUid, setMyUid] = useState("");
   const [token, setToken] = useState("");
   const [action, setAction] = useState<"idle" | "creating">("idle");
@@ -69,8 +67,8 @@ export default function RoomCreatePage() {
   // Navigate on room creation
   useEffect(() => {
     if (!createdRoomId) return;
-    router.push(`/room/${createdRoomId}?uid=${myUid}`);
-  }, [createdRoomId, myUid, router]);
+    window.location.href = `/room/${createdRoomId}?uid=${myUid}`;
+  }, [createdRoomId, myUid]);
 
   const handleCreateRoom = () => {
     if (!myUid || !wsReady) return;
@@ -81,7 +79,7 @@ export default function RoomCreatePage() {
 
   const handleJoinRoom = () => {
     if (!myUid || roomCode.length !== 5) return;
-    router.push(`/room/${roomCode.toUpperCase()}?uid=${myUid}`);
+    window.location.href = `/room/${roomCode.toUpperCase()}?uid=${myUid}`;
   };
 
   const isLoading = action === "creating";

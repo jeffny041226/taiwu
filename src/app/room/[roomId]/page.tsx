@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, use, useEffect, useRef, useCallback } from "react";
-import { useSearchParams } from "next/navigation";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { useParams, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { TopBar } from "@/components/layout/TopBar";
 import { LoadingOverlay } from "@/components/game/LoadingOverlay";
@@ -28,8 +28,8 @@ interface RoomState {
   selectionRemaining?: number;
 }
 
-export default function RoomPage({ params }: { params: Promise<{ roomId: string }> }) {
-  const { roomId } = use(params);
+export default function RoomPage() {
+  const { roomId } = useParams() as { roomId: string };
   const searchParams = useSearchParams();
   const fromMatch = searchParams.get("from") === "match";
   const isPractice = searchParams.get("mode") === "practice";
