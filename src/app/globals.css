@@ -1,5 +1,14 @@
 @import "tailwindcss";
 
+/* 权衡度量体 — 用于首页标题等装饰性文字 */
+@font-face {
+  font-family: "QuanHengDuLiang";
+  src: url("/fonts/QuanHengDuLiang.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
 @theme {
   --color-bg-base: #0a0807;
   --color-gold: #c5a059;

@@ -194,16 +194,15 @@ export default function HomePage() {
       </header>
 
       {/* 斗蛐蛐 标题 */}
-      <div className="absolute left-0 right-0 z-[10] flex justify-center" style={{ top: "calc(25% - 40px)" }}>
-        <Image
-          src="/assets/ui/title-logo.png"
-          alt="斗蛐蛐"
-          width={280}
-          height={100}
-          {...imgProps}
-          className="object-contain drop-shadow-[0_2px_8px_rgba(0,0,0,0.6)]"
-          priority
-        />
+      <div className="absolute left-0 right-0 z-[10] text-center" style={{ top: "calc(25% - 30px)" }}>
+        <h1 className="text-[56px] leading-[1.2] font-[family-name:'QuanHengDuLiang',var(--font-ma-shan)] tracking-[8px] drop-shadow-[0_2px_8px_rgba(0,0,0,0.6)]">
+          <span className="text-[var(--color-gold)]">斗</span>
+          <span className="text-[var(--color-gold)]">蛐</span>
+          <span className="text-[var(--color-gold)]">蛐</span>
+        </h1>
+        <p className="mt-1 text-[14px] text-[var(--color-gold-dim)] font-[family-name:var(--font-noto-serif)] tracking-[8px]">
+          巅峰至臻对战版
+        </p>
       </div>
 
       {/* Error */}
