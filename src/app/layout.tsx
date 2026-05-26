@@ -37,7 +37,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="zh-CN" className={`${notoSerifSC.variable} ${maShanZheng.variable}`}>
-      <body className="min-h-screen bg-[var(--color-bg-base)] text-[var(--color-text-primary)] font-[family-name:var(--font-noto-serif)] overflow-x-hidden">
+      <body className="min-h-screen bg-[var(--color-bg-base)] text-[var(--color-text-primary)] overflow-x-hidden">
         <div className="mx-auto max-w-[390px] min-h-[100dvh] relative overflow-hidden">
           {children}
         </div>

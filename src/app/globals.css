@@ -53,6 +53,11 @@ body {
   overscroll-behavior: none;
 }
 
+/* 全局文案使用权衡度量体 */
+* {
+  font-family: "QuanHengDuLiang", "Noto Serif SC", serif !important;
+}
+
 /* 横屏时不旋转 */
 @media (orientation: landscape) {
   html {
