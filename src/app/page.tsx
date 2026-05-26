@@ -160,10 +160,7 @@ export default function HomePage() {
             <Image src="/assets/ui/icons/icon-backpack.png" alt="背包" width={24} height={24} className="shrink-0" {...imgProps} />
             <span className="text-[13px] text-black font-bold font-quanheng">背包</span>
           </a>
-          <a href={myUid ? "/ladder" : loginUrl} className="h-11 px-2.5 flex items-center gap-1.5 rounded-lg border border-[var(--color-gold)]/25 bg-[rgba(197,160,89,0.06)] hover:bg-[rgba(197,160,89,0.12)] hover:border-[var(--color-gold)]/50 transition-all shrink-0">
-            <span className="text-[18px]">&#9876;</span>
-            <span className="text-[13px] text-black font-bold font-quanheng">天梯</span>
-          </a>
+
         </div>
       </header>
 
@@ -191,7 +188,7 @@ export default function HomePage() {
 
         <a href={myUid ? "/room/create" : loginUrl} className={btnClass + " inline-flex items-center justify-center"}>开房对战</a>
 
-        <a href={myUid ? "/room/create" : loginUrl} className={btnClass + " inline-flex items-center justify-center"}>加入房间</a>
+        <a href={myUid ? "/ladder" : loginUrl} className={btnClass + " inline-flex items-center justify-center"}>天梯</a>
 
         <button type="button" onClick={myUid ? handlePractice : () => window.location.href = loginUrl} disabled={isLoading} className={btnClass}>训练</button>
       </section>
