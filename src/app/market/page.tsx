@@ -295,7 +295,7 @@ export default function MarketPage() {
         <div className="absolute inset-0 z-50 bg-[var(--color-bg-base)]/85 backdrop-blur-sm flex items-center justify-center px-4" onClick={closeResults}>
           <div className="w-full max-w-[342px] rounded-2xl border border-[var(--color-gold)]/40 bg-[rgba(20,14,10,0.9)] flex flex-col gap-3 py-6 px-4" onClick={(e) => e.stopPropagation()}>
             <p className="text-[20px] font-bold text-[var(--color-gold)] font-[family-name:var(--font-ma-shan)] text-center">开笼结果</p>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="flex flex-wrap justify-center gap-2">
               {results.map((r) => {
                 const tmpl = r.template;
                 if (!tmpl) return null;
