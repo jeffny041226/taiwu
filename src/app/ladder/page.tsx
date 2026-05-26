@@ -128,6 +128,7 @@ export default function LadderPage() {
       {/* Background */}
       <div className="fixed inset-0 -z-10" style={{ backgroundImage: `url(${ASSETS.backgrounds.ladder})`, backgroundSize: "cover", backgroundPosition: "center" }} />
 
+
       <TopBar title="战力天梯" backHref="/"
         rightSlot={<button type="button" onClick={openTop100}
           className="h-8 px-4 rounded-lg border border-[var(--color-gold)]/30 bg-[rgba(197,160,89,0.08)] text-[13px] font-bold text-[var(--color-gold)] font-[family-name:var(--font-noto-serif)] hover:border-[var(--color-gold)]/60 active:scale-95 transition-all whitespace-nowrap">
@@ -189,6 +190,7 @@ export default function LadderPage() {
         <div className="fixed inset-0 z-50" onClick={() => setShowTop100(false)}>
           {/* Fixed background — stays in place regardless of content scroll */}
           <div className="fixed inset-0" style={{ backgroundImage: `url(${ASSETS.backgrounds.top100})`, backgroundSize: "cover", backgroundPosition: "center" }} />
+
           {/* Title image — layered above background, outside scroll area */}
           <div className="absolute top-[90px] left-1/2 -translate-x-1/2 z-20 pointer-events-none" onClick={e => e.stopPropagation()}>
             <Image src={ASSETS.backgrounds.top100Title} alt="排行榜" width={2730} height={1535} className="w-[99px] h-auto" {...imgProps} />

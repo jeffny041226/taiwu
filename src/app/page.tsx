@@ -152,13 +152,14 @@ export default function HomePage() {
           )}
         </div>
         <div className="flex items-center gap-2 whitespace-nowrap">
-          <a href={myUid ? "/market" : loginUrl} className="h-11 px-2.5 flex items-center gap-1.5 rounded-lg border border-[var(--color-gold)]/25 bg-[rgba(197,160,89,0.06)] hover:bg-[rgba(197,160,89,0.12)] hover:border-[var(--color-gold)]/50 transition-all shrink-0">
-            <Image src="/assets/ui/icons/icon-market.png" alt="虫市" width={24} height={24} className="shrink-0" {...imgProps} />
+          <a href={myUid ? "/market" : loginUrl} className="h-11 px-3 flex items-center rounded-lg border border-[var(--color-gold)]/25 bg-[rgba(197,160,89,0.06)] hover:bg-[rgba(197,160,89,0.12)] hover:border-[var(--color-gold)]/50 transition-all shrink-0">
             <span className="text-[13px] text-black font-bold font-quanheng">虫市</span>
           </a>
-          <a href={myUid ? "/backpack" : loginUrl} className="h-11 px-2.5 flex items-center gap-1.5 rounded-lg border border-[var(--color-gold)]/25 bg-[rgba(197,160,89,0.06)] hover:bg-[rgba(197,160,89,0.12)] hover:border-[var(--color-gold)]/50 transition-all shrink-0">
-            <Image src="/assets/ui/icons/icon-backpack.png" alt="背包" width={24} height={24} className="shrink-0" {...imgProps} />
+          <a href={myUid ? "/backpack" : loginUrl} className="h-11 px-3 flex items-center rounded-lg border border-[var(--color-gold)]/25 bg-[rgba(197,160,89,0.06)] hover:bg-[rgba(197,160,89,0.12)] hover:border-[var(--color-gold)]/50 transition-all shrink-0">
             <span className="text-[13px] text-black font-bold font-quanheng">背包</span>
+          </a>
+          <a href={myUid ? "/handbook" : loginUrl} className="h-11 px-3 flex items-center rounded-lg border border-[var(--color-gold)]/25 bg-[rgba(197,160,89,0.06)] hover:bg-[rgba(197,160,89,0.12)] hover:border-[var(--color-gold)]/50 transition-all shrink-0">
+            <span className="text-[13px] text-black font-bold font-quanheng">图鉴</span>
           </a>
 
         </div>

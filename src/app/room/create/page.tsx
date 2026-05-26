@@ -9,7 +9,7 @@ import { ensureAuth, getLoginUrl } from "@/lib/auth";
 
 const imgProps = { unoptimized: true };
 const btnClass =
-  "w-[342px] h-[50px] rounded-[10px] border border-[var(--color-gold)]/30 bg-gradient-to-b from-[rgba(30,22,16,0.85)] to-[rgba(20,14,10,0.9)] text-[20px] font-bold text-[var(--color-gold)] font-quanheng active:scale-[0.98] transition-all disabled:opacity-40 disabled:pointer-events-none";
+  "w-full h-[50px] rounded-[10px] border border-[var(--color-gold)]/30 bg-gradient-to-b from-[rgba(30,22,16,0.85)] to-[rgba(20,14,10,0.9)] text-[20px] font-bold text-[var(--color-gold)] font-quanheng active:scale-[0.98] transition-all disabled:opacity-40 disabled:pointer-events-none";
 
 export default function RoomCreatePage() {
   const [myUid, setMyUid] = useState("");
@@ -91,10 +91,12 @@ export default function RoomCreatePage() {
       <div className="relative z-[10] flex flex-col items-center pt-8 px-4">
 
         {/* 创建房间 */}
-        <div className="w-full max-w-[358px] p-6 mb-4 rounded-[16px] border border-[var(--color-gold)]/15 bg-[rgba(20,14,10,0.6)] flex flex-col items-center gap-3">
-          <div className="text-[40px]">🏠</div>
-          <p className="text-[16px] text-[var(--color-text-primary)] font-[family-name:var(--font-noto-serif)]">创建新的房间</p>
-          <p className="text-[12px] text-[var(--color-text-muted)] font-[family-name:var(--font-noto-serif)]">创建房间后分享房间号给好友</p>
+        <div className="w-full max-w-[358px] mb-4 rounded-[16px] border border-[var(--color-gold)]/15 bg-[rgba(20,14,10,0.6)] flex flex-col items-stretch px-5 py-6 gap-3">
+          <div className="text-center">
+            <span className="text-[40px]">🏠</span>
+          </div>
+          <p className="text-center text-[16px] text-[var(--color-text-primary)] font-[family-name:var(--font-noto-serif)]">创建新的房间</p>
+          <p className="text-center text-[12px] text-[var(--color-text-muted)] font-[family-name:var(--font-noto-serif)]">创建房间后分享房间号给好友</p>
           <button
             type="button"
             onClick={handleCreateRoom}
@@ -113,23 +115,25 @@ export default function RoomCreatePage() {
         </div>
 
         {/* 加入房间 */}
-        <div className="w-full max-w-[358px] p-6 rounded-[16px] border border-[var(--color-gold)]/15 bg-[rgba(20,14,10,0.6)] flex flex-col items-center gap-3">
-          <div className="text-[40px]">🔗</div>
-          <p className="text-[16px] text-[var(--color-text-primary)] font-[family-name:var(--font-noto-serif)]">加入已有房间</p>
-          <p className="text-[12px] text-[var(--color-text-muted)] font-[family-name:var(--font-noto-serif)]">输入好友分享的房间号</p>
-          <div className="flex gap-2 w-full">
+        <div className="w-full max-w-[358px] rounded-[16px] border border-[var(--color-gold)]/15 bg-[rgba(20,14,10,0.6)] flex flex-col items-stretch px-5 py-6 gap-3">
+          <div className="text-center">
+            <span className="text-[40px]">🔗</span>
+          </div>
+          <p className="text-center text-[16px] text-[var(--color-text-primary)] font-[family-name:var(--font-noto-serif)]">加入已有房间</p>
+          <p className="text-center text-[12px] text-[var(--color-text-muted)] font-[family-name:var(--font-noto-serif)]">输入好友分享的房间号</p>
+          <div className="flex gap-2">
             <input
               type="text"
               value={roomCode}
               onChange={(e) => setRoomCode(e.target.value.replace(/[^a-zA-Z0-9]/g, "").slice(0, 5))}
               placeholder="输入房间号"
-              className="flex-1 h-[50px] rounded-[10px] border border-[var(--color-gold)]/30 bg-[rgba(20,14,10,0.9)] px-4 text-center text-[20px] tracking-[6px] text-[var(--color-text-primary)] font-[family-name:var(--font-noto-serif)] placeholder:text-[var(--color-text-muted)] outline-none focus:border-[var(--color-gold)]/70 uppercase"
+              className="flex-1 min-w-0 h-[50px] rounded-[10px] border border-[var(--color-gold)]/30 bg-[rgba(20,14,10,0.9)] px-4 text-center text-[20px] tracking-[6px] text-[var(--color-text-primary)] font-[family-name:var(--font-noto-serif)] placeholder:text-[var(--color-text-muted)] outline-none focus:border-[var(--color-gold)]/70 uppercase"
             />
             <button
               type="button"
               onClick={handleJoinRoom}
               disabled={roomCode.length !== 5}
-              className={`h-[50px] px-6 rounded-[10px] border border-[var(--color-gold)]/30 bg-gradient-to-b from-[rgba(30,22,16,0.85)] to-[rgba(20,14,10,0.9)] text-[18px] font-bold whitespace-nowrap flex items-center justify-center font-[family-name:var(--font-noto-serif)] ${roomCode.length === 5 ? "text-[#4a90d9] hover:border-[#4a90d9]/70" : "text-[var(--color-text-muted)] opacity-40 pointer-events-none"}`}
+              className={`shrink-0 px-3 h-[50px] rounded-[10px] border border-[var(--color-gold)]/30 bg-gradient-to-b from-[rgba(30,22,16,0.85)] to-[rgba(20,14,10,0.9)] text-[16px] font-bold whitespace-nowrap flex items-center justify-center font-[family-name:var(--font-noto-serif)] ${roomCode.length === 5 ? "text-[#4a90d9] hover:border-[#4a90d9]/70" : "text-[var(--color-text-muted)] opacity-40 pointer-events-none"}`}
             >
               进入
             </button>
