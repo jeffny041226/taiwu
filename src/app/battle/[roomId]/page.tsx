@@ -228,6 +228,7 @@ export default function BattlePage({ params }: { params: Promise<{ roomId: strin
     enemyHp: 0, enemyStamina: 0, enemySpirit: 0,
     roundCount: 0, waitingForAction: false,
   });
+  const cricketChangeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     stateRefs.current.myTeam = myTeam;
@@ -287,6 +288,9 @@ export default function BattlePage({ params }: { params: Promise<{ roomId: strin
       setLastMyAction(r.myAction);
       setLastEnemyAction(r.enemyAction);
       setWaitingForAction(false);
+      // 记录当前蛐蛐索引，用于 setTimeout 内判断蛐蛐是否已切换
+      const roundMyIdx = s.myIdx;
+      const roundEnemyIdx = s.enemyIdx;
       // 若本回合有阵亡，标记等待对方换蛐蛐而非继续出招
       if (r.myDefeated || r.enemyDefeated) {
         setPvpPhase("roundEnd");
@@ -364,8 +368,13 @@ export default function BattlePage({ params }: { params: Promise<{ roomId: strin
           addLog(myName + " 格挡，减免 " + pct + "% 伤害");
         }
 
-        setMyHp(r.myHp); setMyStamina(r.myStamina); setMySpirit(r.mySpirit);
-        setEnemyHp(r.enemyHp); setEnemyStamina(r.enemyStamina); setEnemySpirit(r.enemySpirit);
+        // 如果蛐蛐已切换（收到 cricketChange），跳过本回合的旧数据
+        if (stateRefs.current.myIdx === roundMyIdx) {
+          setMyHp(r.myHp); setMyStamina(r.myStamina); setMySpirit(r.mySpirit);
+        }
+        if (stateRefs.current.enemyIdx === roundEnemyIdx) {
+          setEnemyHp(r.enemyHp); setEnemyStamina(r.enemyStamina); setEnemySpirit(r.enemySpirit);
+        }
         if (r.myStaminaDelta) addLog(myName + " 耐力 " + (r.myStaminaDelta > 0 ? "+" : "") + r.myStaminaDelta);
         if (r.enemyStaminaDelta) addLog(enemyName + " 耐力 " + (r.enemyStaminaDelta > 0 ? "+" : "") + r.enemyStaminaDelta);
         if (r.mySpiritDelta) addLog(myName + " 斗性 " + (r.mySpiritDelta > 0 ? "+" : "") + r.mySpiritDelta);
@@ -417,12 +426,17 @@ export default function BattlePage({ params }: { params: Promise<{ roomId: strin
 
     const handleCricketChange = (payload: unknown) => {
       const r = payload as { myCricket: Cricket; enemyCricket: Cricket; myIdx: number; enemyIdx: number };
-      setMyIdx(r.myIdx); setEnemyIdx(r.enemyIdx);
-      setMyHp(r.myCricket.hp); setMyStamina(r.myCricket.stamina); setMySpirit(r.myCricket.spirit);
-      setEnemyHp(r.enemyCricket.hp); setEnemyStamina(r.enemyCricket.stamina); setEnemySpirit(r.enemyCricket.spirit);
-      addLog("换蛐蛐: 我方->" + r.myCricket.name + " 对方->" + r.enemyCricket.name);
-      setPvpPhase("battling");
-      setWaitingForAction(true);
+      // 延迟换蛐蛐，等待伤害动画 + HP过渡完成再切换
+      if (cricketChangeTimer.current) clearTimeout(cricketChangeTimer.current);
+      cricketChangeTimer.current = setTimeout(() => {
+        cricketChangeTimer.current = null;
+        setMyIdx(r.myIdx); setEnemyIdx(r.enemyIdx);
+        setMyHp(r.myCricket.hp); setMyStamina(r.myCricket.stamina); setMySpirit(r.myCricket.spirit);
+        setEnemyHp(r.enemyCricket.hp); setEnemyStamina(r.enemyCricket.stamina); setEnemySpirit(r.enemyCricket.spirit);
+        addLog("换蛐蛐: 我方->" + r.myCricket.name + " 对方->" + r.enemyCricket.name);
+        setPvpPhase("battling");
+        setWaitingForAction(true);
+      }, 800);
     };
 
     const handleError = (payload: unknown) => {
@@ -450,6 +464,7 @@ export default function BattlePage({ params }: { params: Promise<{ roomId: strin
     onEvent("reconnect", handleReconnect);
 
     return () => {
+      if (cricketChangeTimer.current) clearTimeout(cricketChangeTimer.current);
       off("battle:data", handleBattleData);
       off("battle:roundResult", handleRoundResult);
       off("battle:roundWin", handleRoundWin);

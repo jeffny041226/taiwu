@@ -12,6 +12,9 @@ export const ASSETS = {
     backpack: "/assets/backgrounds/bg-backpack.webp?v=2",
     battle:   "/assets/backgrounds/bg-battle.webp?v=2",
     room:     "/assets/backgrounds/bg-room.webp?v=2",
+    ladder:   "/assets/backgrounds/bg-ladder.webp",
+    top100:   "/assets/backgrounds/bg-top100.webp",
+    top100Title: "/assets/backgrounds/bg-top100-title.webp",
   },
 
   ui: {

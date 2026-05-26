@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { TopBar } from "@/components/layout/TopBar";
 import { LoadingOverlay } from "@/components/game/LoadingOverlay";
+import { ASSETS } from "@/config/assets";
 import { api } from "@/lib/api";
 import { ensureAuth } from "@/lib/auth";
 import { useWebSocket } from "@/hooks/useWebSocket";
@@ -123,10 +124,9 @@ export default function LadderPage() {
   if (loading) return <LoadingOverlay visible message="加载天梯..." />;
 
   return (
-    <div className="relative w-full min-h-[100dvh] bg-[var(--color-bg-base)]">
+    <div className="relative w-full min-h-[100dvh]">
       {/* Background */}
-      <div className="fixed inset-0 -z-10" style={{ backgroundImage: "url(/assets/backgrounds/bg-home.webp)", backgroundSize: "cover", backgroundPosition: "center" }} />
-      <div className="fixed inset-0 -z-10 bg-black/50" />
+      <div className="fixed inset-0 -z-10" style={{ backgroundImage: `url(${ASSETS.backgrounds.ladder})`, backgroundSize: "cover", backgroundPosition: "center" }} />
 
       <TopBar title="战力天梯" backHref="/"
         rightSlot={<button type="button" onClick={openTop100}
@@ -156,16 +156,16 @@ export default function LadderPage() {
       <div className="mx-4 mt-3 pb-24 space-y-1.5">
         {players.map(p => (
           <div key={p.uid}
-            className={`flex items-center gap-3 px-3 py-2.5 rounded-lg border ${p.isMe ? "border-[var(--color-gold)]/40 bg-[rgba(197,160,89,0.08)]" : "border-white/5 bg-[rgba(20,14,10,0.6)]"}`}>
-            <span className="w-8 text-center text-[13px] font-bold text-[var(--color-text-secondary)] font-[family-name:var(--font-noto-serif)]">{p.rank}</span>
+            className={`flex items-center gap-3 px-3 py-2.5 rounded-lg border ${p.isMe ? "border-[var(--color-gold)]/40 bg-[#2a2620]" : "border-white/5 bg-[#1e1c18]"}`}>
+            <span className="w-8 text-center text-[13px] font-bold text-white font-[family-name:var(--font-noto-serif)]">{p.rank}</span>
             <Image src={p.avatar || "/assets/avatars/avatar-default.png"} alt="" width={36} height={36} className="rounded-full border border-[var(--color-gold)]/20" {...imgProps} />
             <div className="flex-1 min-w-0">
               <p className="text-[14px] font-bold text-[var(--color-text-primary)] font-[family-name:var(--font-noto-serif)] truncate">{p.nickName}{p.isMe ? " (我)" : ""}</p>
-              <p className="text-[12px] text-[var(--color-text-muted)] font-[family-name:var(--font-noto-serif)]">战力 {p.combatPower}</p>
+              <p className="text-[12px] font-bold text-red-500 font-[family-name:var(--font-noto-serif)]">战力 {p.combatPower}</p>
             </div>
             {!p.isMe && (
               <button type="button" onClick={() => startChallenge(p)}
-                className="h-8 px-3 rounded-lg border border-[var(--color-gold)]/30 bg-[rgba(197,160,89,0.06)] text-[12px] font-bold text-[var(--color-gold)] font-[family-name:var(--font-noto-serif)] hover:border-[var(--color-gold)]/60 active:scale-95 transition-all">
+                className="h-8 px-3 rounded-lg border border-[var(--color-gold)]/30 bg-[rgba(197,160,89,0.06)] text-[12px] font-bold text-[#4a90d9] font-[family-name:var(--font-noto-serif)] hover:border-[#4a90d9]/60 active:scale-95 transition-all">
                 挑战
               </button>
             )}
@@ -184,25 +184,36 @@ export default function LadderPage() {
         </Link>
       </div>
 
-      {/* Top100 overlay */}
+      {/* Top100 overlay — image has title artwork + content frame built-in */}
       {showTop100 && (
-        <div className="fixed inset-0 z-50 bg-[var(--color-bg-base)]/90 backdrop-blur-sm flex flex-col" onClick={() => setShowTop100(false)}>
-          <div className="flex items-center justify-between px-4 h-[55px] border-b border-[var(--color-gold)]/15" onClick={e => e.stopPropagation()}>
-            <h2 className="text-[18px] font-bold text-[var(--color-gold)] font-[family-name:var(--font-noto-serif)]">全服排行</h2>
-            <button type="button" onClick={() => setShowTop100(false)} className="text-[var(--color-text-secondary)] text-[24px]">&times;</button>
+        <div className="fixed inset-0 z-50" onClick={() => setShowTop100(false)}>
+          {/* Fixed background — stays in place regardless of content scroll */}
+          <div className="fixed inset-0" style={{ backgroundImage: `url(${ASSETS.backgrounds.top100})`, backgroundSize: "cover", backgroundPosition: "center" }} />
+          {/* Title image — layered above background, outside scroll area */}
+          <div className="absolute top-[90px] left-1/2 -translate-x-1/2 z-20 pointer-events-none" onClick={e => e.stopPropagation()}>
+            <Image src={ASSETS.backgrounds.top100Title} alt="排行榜" width={2730} height={1535} className="w-[99px] h-auto" {...imgProps} />
           </div>
-          <div className="flex-1 overflow-y-auto px-4 py-2 space-y-1" onClick={e => e.stopPropagation()}>
-            {top100.map(p => (
-              <div key={p.uid} className={`flex items-center gap-3 px-3 py-2 rounded-lg border ${p.uid === myUid ? "border-[var(--color-gold)]/30 bg-[rgba(197,160,89,0.06)]" : "border-white/5 bg-[rgba(20,14,10,0.4)]"}`}>
-                <span className={`w-7 text-center text-[13px] font-bold font-[family-name:var(--font-noto-serif)] ${p.rank <= 3 ? "text-[var(--color-gold)]" : "text-[var(--color-text-secondary)]"}`}>
-                  {p.rank <= 3 ? ["🥇","🥈","🥉"][p.rank - 1] : p.rank}
-                </span>
-                <Image src={p.avatar || "/assets/avatars/avatar-default.png"} alt="" width={32} height={32} className="rounded-full" {...imgProps} />
-                <span className="flex-1 text-[13px] text-[var(--color-text-primary)] font-[family-name:var(--font-noto-serif)] truncate">{p.nickName}</span>
-                <span className="text-[13px] text-[var(--color-gold)] font-[family-name:var(--font-noto-serif)]">{p.combatPower}</span>
+          {/* Close button — above title image */}
+          <button type="button" onClick={() => setShowTop100(false)}
+            className="fixed top-[14px] right-[18px] z-30 w-[32px] h-[32px] flex items-center justify-center rounded-full bg-black/20 text-white/80 text-[20px] leading-none hover:bg-black/40 active:scale-90 transition-all">&times;</button>
+          {/* Scrolling content area constrained within top/bottom 150px */}
+          <div className="relative z-10 h-full overflow-hidden" onClick={e => e.stopPropagation()}>
+            {/* Content container with fixed top/bottom padding */}
+            <div className="absolute inset-0 px-[65px]" style={{ paddingTop: "150px", paddingBottom: "150px" }}>
+              <div className="h-full overflow-y-auto space-y-1">
+                {top100.map(p => (
+                  <div key={p.uid} className={`flex items-center gap-3 px-3 py-2 rounded-lg border ${p.uid === myUid ? "border-[var(--color-gold)]/30" : "border-transparent"}`}>
+                    <span className={`w-7 text-center text-[13px] font-bold font-[family-name:var(--font-noto-serif)] ${p.rank <= 3 ? "text-[var(--color-gold)]" : "text-[var(--color-text-secondary)]"}`}>
+                      {p.rank <= 3 ? ["🥇","🥈","🥉"][p.rank - 1] : p.rank}
+                    </span>
+                    <Image src={p.avatar || "/assets/avatars/avatar-default.png"} alt="" width={32} height={32} className="rounded-full" {...imgProps} />
+                    <span className="flex-1 text-[13px] font-bold text-[#4a90d9] font-[family-name:var(--font-noto-serif)] truncate">{p.nickName}</span>
+                    <span className="text-[13px] font-bold text-red-500 font-[family-name:var(--font-noto-serif)]">{p.combatPower}</span>
+                  </div>
+                ))}
+                {top100.length === 0 && <p className="text-center text-[var(--color-text-muted)] mt-8">加载中...</p>}
               </div>
-            ))}
-            {top100.length === 0 && <p className="text-center text-[var(--color-text-muted)] mt-8">加载中...</p>}
+            </div>
           </div>
         </div>
       )}
