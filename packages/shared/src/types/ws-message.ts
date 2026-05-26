@@ -37,6 +37,19 @@ export interface BattleActionMessage {
   payload: { action: Action };
 }
 
+export interface RoomChallengeMessage {
+  type: "room:challenge";
+  payload: {
+    targetUid: string;
+    cricketIds: number[];
+    cricketStats: Array<{
+      templateId: number; name: string; title: string; tier: string; trait: string;
+      attack: number; defense: number; speed: number;
+      maxHp: number; maxStamina: number; spiritBase: number;
+    }>;
+  };
+}
+
 export type ClientMessage =
   | RoomCreateMessage
   | RoomJoinMessage
@@ -45,6 +58,7 @@ export type ClientMessage =
   | RoomMatchmakeCancelMessage
   | BattleReadyMessage
   | BattleActionMessage
+  | RoomChallengeMessage
   | { type: "ping"; payload: unknown };
 
 // --- Server → Client ---
@@ -104,6 +118,11 @@ export interface BattleGameOverMessage {
   payload: GameOverResult;
 }
 
+export interface BattlePowerUpdateMessage {
+  type: "battle:powerUpdate";
+  payload: { power: number; delta: number; won: boolean };
+}
+
 export type ServerMessage =
   | RoomCreatedMessage
   | RoomJoinedMessage
@@ -116,4 +135,5 @@ export type ServerMessage =
   | BattleRoundResultMessage
   | BattleRoundWinMessage
   | BattleGameOverMessage
+  | BattlePowerUpdateMessage
   | { type: "pong"; payload: unknown };

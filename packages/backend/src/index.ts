@@ -13,6 +13,7 @@ import { gachaRouter } from "./routes/gacha";
 import { roomRouter } from "./routes/room";
 import { payRouter } from "./routes/pay";
 import { redeemRouter } from "./routes/redeem";
+import { ladderRouter } from "./routes/ladder";
 import { handleMessage, handleClose } from "./ws/handler";
 import { getAllRooms, finishRoom, scheduleCleanup } from "./ws/room-manager";
 import { passportService } from "./services/passport";
@@ -30,6 +31,7 @@ app.use("/api/gacha", gachaRouter);
 app.use("/api/room", roomRouter);
 app.use("/api/pay", payRouter);
 app.use("/api/redeem", redeemRouter);
+app.use("/api/ladder", ladderRouter);
 
 app.use(errorHandler);
 

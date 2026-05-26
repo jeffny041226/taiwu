@@ -115,3 +115,46 @@ export function memoryUseRedeemCode(code: string, uid: string): MemoryRedeemCode
   record.used_at = new Date().toISOString();
   return record;
 }
+
+// ── 战力系统内存存储 ──
+
+const combatPowers = new Map<string, number>();
+const defenseLineups = new Map<string, number[]>();
+const winLossRecords = new Map<string, { wins: number; losses: number }>();
+
+export function memoryGetCombatPower(uid: string): number {
+  return combatPowers.get(uid) ?? 1000;
+}
+
+export function memorySetCombatPower(uid: string, power: number): void {
+  combatPowers.set(uid, Math.max(0, power));
+}
+
+export function memoryAdjustCombatPower(uid: string, delta: number): number {
+  const current = memoryGetCombatPower(uid);
+  const updated = Math.max(0, current + delta);
+  combatPowers.set(uid, updated);
+  return updated;
+}
+
+export function memoryGetDefenseCrickets(uid: string): number[] {
+  return defenseLineups.get(uid) ?? [];
+}
+
+export function memorySetDefenseCrickets(uid: string, cricketIds: number[]): void {
+  defenseLineups.set(uid, cricketIds.slice(0, 3));
+}
+
+export function memoryGetWinLoss(uid: string): { wins: number; losses: number } {
+  return winLossRecords.get(uid) ?? { wins: 0, losses: 0 };
+}
+
+export function memoryAddWin(uid: string): void {
+  const current = memoryGetWinLoss(uid);
+  winLossRecords.set(uid, { wins: current.wins + 1, losses: current.losses });
+}
+
+export function memoryAddLoss(uid: string): void {
+  const current = memoryGetWinLoss(uid);
+  winLossRecords.set(uid, { wins: current.wins, losses: current.losses + 1 });
+}

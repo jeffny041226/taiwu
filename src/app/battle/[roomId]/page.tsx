@@ -162,6 +162,8 @@ export default function BattlePage({ params }: { params: Promise<{ roomId: strin
   const { roomId } = use(params);
   const searchParams = useSearchParams();
   const isPractice = searchParams.get("mode") === "practice";
+  const isChallenge = searchParams.get("mode") === "challenge";
+  const challengeTargetName = searchParams.get("targetName") || "";
   const fromMatch = searchParams.get("from") === "match";
 
   // Auth init
@@ -197,6 +199,7 @@ export default function BattlePage({ params }: { params: Promise<{ roomId: strin
   const [waitingForAction, setWaitingForAction] = useState(false);
   const [pvpPhase, setPvpPhase] = useState<"loading" | "battling" | "roundEnd" | "finished">("loading");
   const [pvpGameOver, setPvpGameOver] = useState<{ winner: string; myScore: number; enemyScore: number } | null>(null);
+  const [powerChange, setPowerChange] = useState<{ power: number; delta: number; won: boolean } | null>(null);
   const [rematchLoading, setRematchLoading] = useState(false);
   const [showDamage, setShowDamage] = useState<{ dmg: number; target: "me" | "enemy" } | null>(null);
   const [lastMyAction, setLastMyAction] = useState<Action | null>(null);
@@ -436,6 +439,7 @@ export default function BattlePage({ params }: { params: Promise<{ roomId: strin
     on("battle:roundWin", handleRoundWin);
     on("battle:gameOver", handleGameOver);
     on("battle:cricketChange", handleCricketChange);
+    on("battle:powerUpdate", (p: unknown) => { setPowerChange(p as { power: number; delta: number; won: boolean }); });
     on("room:error", handleError);
 
     // WS 重连后自动重发 room:join，保持房间绑定
@@ -451,6 +455,7 @@ export default function BattlePage({ params }: { params: Promise<{ roomId: strin
       off("battle:roundWin", handleRoundWin);
       off("battle:gameOver", handleGameOver);
       off("battle:cricketChange", handleCricketChange);
+      off("battle:powerUpdate");
       off("room:error", handleError);
       offEvent("reconnect", handleReconnect);
     };
@@ -727,7 +732,7 @@ export default function BattlePage({ params }: { params: Promise<{ roomId: strin
       <Image src="/assets/backgrounds/bg-battle.webp?v=2" alt="" fill unoptimized className="object-cover" priority />
       <div className="absolute inset-0 bg-[var(--color-bg-base)]/60" />
       <TopBar
-        title={isPractice ? `训练(${BATTLE_MODE_LABELS[BATTLE_MODE]})` : `对战·${BATTLE_MODE_LABELS[BATTLE_MODE]}`}
+        title={isPractice && !isChallenge ? `训练(${BATTLE_MODE_LABELS[BATTLE_MODE]})` : isChallenge ? `挑战·${challengeTargetName}` : `对战·${BATTLE_MODE_LABELS[BATTLE_MODE]}`}
         rightWide
         rightSlot={<span className="text-[11px] text-[var(--color-text-muted)] font-[family-name:var(--font-noto-serif)]">第{(isPractice ? trainRoundCount : roundCount)}回合</span>}
         backHref="/"
@@ -918,9 +923,16 @@ export default function BattlePage({ params }: { params: Promise<{ roomId: strin
             <p className="text-[22px] font-bold text-[var(--color-text-primary)] font-[family-name:var(--font-noto-serif)] text-center">
               {winnerText === "你" ? "大获全胜！" : "铩羽而归"}
             </p>
+            {powerChange && (
+              <p className={`text-[16px] font-bold font-[family-name:var(--font-noto-serif)] text-center ${powerChange.delta > 0 ? "text-green-400" : "text-red-400"}`}>
+                战力 {powerChange.delta > 0 ? `+${powerChange.delta}` : powerChange.delta} (当前 {powerChange.power})
+              </p>
+            )}
             <div className="flex gap-3">
               <a href="/" className="flex-1 h-11 rounded-[10px] border border-[var(--color-gold)]/30 bg-gradient-to-b from-[rgba(30,22,16,0.85)] to-[rgba(20,14,10,0.9)] text-[18px] font-bold text-[var(--color-gold)] font-[family-name:var(--font-noto-serif)] items-center justify-center flex hover:border-[var(--color-gold)]/70 transition-all active:scale-[0.98]">返回大厅</a>
-              {isPractice ? (
+              {isChallenge ? (
+                <a href="/ladder" className="flex-1 h-11 rounded-[10px] border border-[var(--color-gold)]/30 bg-gradient-to-b from-[rgba(30,22,16,0.85)] to-[rgba(20,14,10,0.9)] text-[18px] font-bold text-[var(--color-gold)] font-[family-name:var(--font-noto-serif)] items-center justify-center flex hover:border-[var(--color-gold)]/70 transition-all active:scale-[0.98]">返回天梯</a>
+              ) : isPractice ? (
                 <button type="button" onClick={handleRematch} disabled={rematchLoading}
                   className="flex-1 h-11 rounded-[10px] border border-[var(--color-gold)]/30 bg-gradient-to-b from-[rgba(30,22,16,0.85)] to-[rgba(20,14,10,0.9)] text-[18px] font-bold text-[var(--color-gold)] font-[family-name:var(--font-noto-serif)] items-center justify-center flex hover:border-[var(--color-gold)]/70 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed">{rematchLoading ? "重开中..." : "再来一局"}</button>
               ) : fromMatch ? (

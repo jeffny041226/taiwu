@@ -53,4 +53,6 @@ export interface Room {
   createdAt: number;
   battleMode: BattleMode;
   lastDefeatedSide: "left" | "right" | "both" | null;
+  targetUid?: string;
+  targetNickName?: string;
 }

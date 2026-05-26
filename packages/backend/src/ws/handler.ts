@@ -13,6 +13,11 @@ import { aiChooseAction, createAIPlayer, createAICrickets } from "./ai-opponent"
 import { resolveCrickets, resolveCricketsWithStats, DEFAULT_CRICKET_IDS } from "./cricket-resolver";
 import type { BattleCalcInput } from "@taiwu/shared/lib/battle-calc";
 import { ACTION_TIMEOUT, CRICKET_SELECTION_TIMEOUT } from "@taiwu/shared/config/game";
+import { getSupabase } from "../db/supabase";
+import {
+  memoryGetCombatPower, memoryAdjustCombatPower,
+  memoryGetDefenseCrickets, memoryAddWin, memoryAddLoss,
+} from "../lib/memory-store";
 
 interface WSMessage {
   type: string;
@@ -32,6 +37,121 @@ function broadcast(roomId: string, type: string, payload: unknown): void {
   const rightWs = room.rightPlayer?.ws;
   if (leftWs && leftWs.readyState === WebSocket.OPEN) send(leftWs, type, payload);
   if (rightWs && !room.isPractice && rightWs.readyState === WebSocket.OPEN) send(rightWs, type, payload);
+}
+
+// ── 战力持久化 ──
+
+async function adjustCombatPower(uid: string, delta: number): Promise<number> {
+  const sb = getSupabase();
+  if (sb) {
+    const { data } = await sb.from("users").select("combat_power").eq("uid", uid).single();
+    const current = data?.combat_power ?? 1000;
+    const updated = Math.max(0, current + delta);
+    await sb.from("users").update({ combat_power: updated }).eq("uid", uid);
+    return updated;
+  }
+  return memoryAdjustCombatPower(uid, delta);
+}
+
+async function persistBattleOutcome(roomId: string): Promise<void> {
+  const room = getRoom(roomId);
+  if (!room) return;
+  // 纯训练模式不影响战力
+  if (room.isPractice && !room.targetUid) return;
+
+  const leftUid = room.leftPlayer?.uid;
+  const rightUid = room.targetUid || room.rightPlayer?.uid;
+  if (!leftUid || !rightUid) return;
+
+  const leftWon = room.leftScore > room.rightScore;
+  const rightWon = room.rightScore > room.leftScore;
+  const isDraw = room.leftScore === room.rightScore;
+
+  if (isDraw) return;
+
+  const winnerUid = leftWon ? leftUid : rightUid;
+  const loserUid = leftWon ? rightUid : leftUid;
+
+  // 更新战力
+  const winnerPower = await adjustCombatPower(winnerUid, 25);
+  const loserPower = await adjustCombatPower(loserUid, -25);
+
+  // 更新胜负场
+  const sb = getSupabase();
+  if (sb) {
+    const { data: w } = await sb.from("users").select("wins,losses").eq("uid", winnerUid).single();
+    await sb.from("users").update({ wins: (w?.wins ?? 0) + 1 }).eq("uid", winnerUid);
+    const { data: l } = await sb.from("users").select("wins,losses").eq("uid", loserUid).single();
+    await sb.from("users").update({ losses: (l?.losses ?? 0) + 1 }).eq("uid", loserUid);
+  } else {
+    memoryAddWin(winnerUid);
+    memoryAddLoss(loserUid);
+  }
+
+  // 通知在线玩家战力变化
+  const leftWs = room.leftPlayer?.ws;
+  if (leftWs?.readyState === WebSocket.OPEN && leftUid) {
+    const won = leftUid === winnerUid;
+    send(leftWs, "battle:powerUpdate", { power: won ? winnerPower : loserPower, delta: won ? 25 : -25, won });
+  }
+}
+
+// ── 挑战模式：加载目标防守阵容 ──
+
+async function loadDefenseLineup(targetUid: string): Promise<{ nickName: string; avatar?: string; crickets: any[] } | null> {
+  const sb = getSupabase();
+  if (sb) {
+    const { data: user } = await sb.from("users")
+      .select("nick_name, avatar, defense_crickets")
+      .eq("uid", targetUid).single();
+
+    if (!user) return null;
+    const nickName = user.nick_name || "玩家";
+    const avatar = user.avatar || undefined;
+    const defenseIds: number[] = user.defense_crickets || [];
+
+    let cricketIds = defenseIds;
+    // 未布阵则随机选3只
+    if (cricketIds.length < 3) {
+      const { data: owned } = await sb.from("user_crickets")
+        .select("id").eq("uid", targetUid).limit(3);
+      cricketIds = (owned || []).map((c: any) => c.id);
+    }
+
+    if (cricketIds.length === 0) return null;
+
+    const { data: cricketData } = await sb.from("user_crickets")
+      .select("id, template_id, attack, defense, speed, max_hp, max_stamina, spirit_base")
+      .in("id", cricketIds.slice(0, 3)).eq("uid", targetUid);
+
+    if (!cricketData || cricketData.length === 0) return null;
+
+    const templateIds = cricketData.map((c: any) => c.template_id);
+    const { data: templates } = await sb.from("cricket_templates").select("*").in("id", templateIds);
+
+    const crickets = cricketData.map((c: any) => {
+      const tmpl = (templates || []).find((t: any) => t.id === c.template_id);
+      return {
+        id: c.id, templateId: c.template_id,
+        name: tmpl?.name || "蛐蛐", title: tmpl?.title || "", tier: tmpl?.tier || "common",
+        attack: c.attack, defense: c.defense, speed: c.speed,
+        maxHp: c.max_hp, hp: c.max_hp, maxStamina: c.max_stamina, stamina: c.max_stamina,
+        spirit: c.spirit_base, trait: tmpl?.trait || "fierce",
+      };
+    });
+
+    return { nickName, avatar, crickets };
+  }
+
+  // Memory fallback
+  const ids = memoryGetDefenseCrickets(targetUid);
+  return ids.length > 0
+    ? { nickName: "玩家", crickets: ids.map((id: number) => ({
+        id, templateId: 1, name: "蛐蛐", title: "", tier: "common",
+        attack: 15, defense: 15, speed: 12, maxHp: 100, hp: 100,
+        maxStamina: 100, stamina: 100, spirit: 100, trait: "fierce",
+      })) }
+    : null;
 }
 
 function clearActionTimer(roomId: string): void {
@@ -99,6 +219,7 @@ function handleRoundSettlement(roomId: string): void {
       send(room.rightPlayer.ws, "battle:gameOver", gameOverPerspective(false));
     }
     scheduleCleanup(roomId);
+    persistBattleOutcome(roomId).catch(err => console.error(`[Power] 持久化失败 ${roomId}:`, err));
     return;
   }
 
@@ -219,6 +340,7 @@ function practiceStep(roomId: string, defeatedSide: "left" | "right" | "both" | 
     if (room.leftPlayer?.ws?.readyState === WebSocket.OPEN) send(room.leftPlayer.ws, "battle:gameOver", gameOverPerspective(true));
     if (room.rightPlayer?.ws && !room.isPractice && room.rightPlayer.ws.readyState === WebSocket.OPEN) send(room.rightPlayer.ws, "battle:gameOver", gameOverPerspective(false));
     scheduleCleanup(roomId);
+    persistBattleOutcome(roomId).catch(err => console.error(`[Power] 持久化失败 ${roomId}:`, err));
   }
 }
 
@@ -337,6 +459,57 @@ function buildRoomState(room: NonNullable<ReturnType<typeof getRoom>>) {
   return base;
 }
 
+/** 处理挑战请求（异步加载防守阵容） */
+async function handleChallenge(ws: WebSocket, payload: Record<string, unknown>): Promise<void> {
+  const uid = (ws as any).uid || (payload.uid as string) || "player";
+  const nickName = (ws as any).nickName || (payload.nickName as string) || "玩家";
+  const targetUid = payload.targetUid as string;
+  const cricketIds = payload.cricketIds as number[];
+  const cricketStats = payload.cricketStats as any[];
+
+  if (!targetUid || !cricketIds || !cricketStats || cricketIds.length !== 3) {
+    send(ws, "room:error", { message: "参数不完整" });
+    return;
+  }
+
+  const defense = await loadDefenseLineup(targetUid);
+  if (!defense) {
+    send(ws, "room:error", { message: "对手暂无可挑战阵容" });
+    return;
+  }
+
+  const roomId = generateRoomCode(uid + "-challenge-" + Date.now());
+  const player = { uid, nickName, ws, readyRound: false };
+  const room = createRoom(roomId, player, true);
+  room.targetUid = targetUid;
+  room.targetNickName = defense.nickName;
+
+  room.rightPlayer = createAIPlayer();
+  room.rightPlayer!.uid = targetUid;
+  room.rightPlayer!.nickName = defense.nickName;
+  room.rightPlayer!.avatar = defense.avatar;
+  room.rightCrickets = defense.crickets;
+  room.rightPlayer!.readyRound = true;
+
+  const crickets = resolveCricketsWithStats(cricketStats);
+  if (!crickets) {
+    send(ws, "room:error", { message: "蛐蛐数据无效" });
+    return;
+  }
+  setCrickets(room, "left", crickets);
+  room.leftPlayer!.cricketIds = cricketIds;
+  room.leftPlayer!.readyRound = true;
+  room.phase = "ready";
+  room.selectionStartTime = Date.now();
+
+  if (startBattle(room)) {
+    send(ws, "room:created", { roomId });
+    broadcastBattleData(room);
+    broadcast(roomId, "room:state", buildRoomState(room));
+    room.actionTimer = setTimeout(() => startPracticeLoop(roomId), 2000);
+  }
+}
+
 export function handleMessage(ws: WebSocket, rawData: Buffer): void {
   let msg: WSMessage;
   try {
@@ -426,6 +599,14 @@ export function handleMessage(ws: WebSocket, rawData: Buffer): void {
       send(ws, "room:state", buildRoomState(room));
       send(ws, "room:selectionStart", { timeout: CRICKET_SELECTION_TIMEOUT });
       startSelectionTimer(roomId);
+      break;
+    }
+
+    case "room:challenge": {
+      handleChallenge(ws, payload).catch(err => {
+        console.error("[Challenge] 处理失败:", err);
+        send(ws, "room:error", { message: "挑战发起失败" });
+      });
       break;
     }
 

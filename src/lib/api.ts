@@ -126,4 +126,27 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ code }),
     }),
+
+  /** 战力排行榜 top100 */
+  getLadderTop100: () =>
+    request<{ list: Array<{ rank: number; uid: string; nickName: string; avatar?: string; combatPower: number }> }>("/ladder/top100"),
+
+  /** 当前用户排名 + 周围玩家 */
+  getLadderPosition: () =>
+    request<{
+      myRank: number; myCombatPower: number; myNickName: string; myAvatar?: string;
+      myWins?: number; myLosses?: number;
+      list: Array<{ rank: number; uid: string; nickName: string; avatar?: string; combatPower: number; isMe?: boolean }>;
+    }>("/ladder/position"),
+
+  /** 获取防守阵容 */
+  getDefense: () =>
+    request<{ cricketIds: number[]; crickets: UserCricketResponse[] }>("/ladder/defense"),
+
+  /** 保存防守阵容 */
+  setDefense: (cricketIds: number[]) =>
+    request<{ success: boolean; cricketIds: number[] }>("/ladder/defense", {
+      method: "PUT",
+      body: JSON.stringify({ cricketIds }),
+    }),
 };
