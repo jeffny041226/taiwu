@@ -174,19 +174,19 @@ export default function HomePage() {
             <a href={loginUrl} className="text-[14px] text-white font-bold hover:text-white/80 font-[family-name:var(--font-noto-serif)] underline underline-offset-4">登录/注册</a>
           )}
           {nickName && (
-            <span className="text-[var(--color-text-primary)] text-base max-w-[160px] truncate font-[family-name:var(--font-noto-serif)]">{nickName}</span>
+            <span className="text-[var(--color-text-primary)] text-[13px] max-w-[160px] truncate font-[family-name:var(--font-noto-serif)]">{nickName}</span>
           )}
         </div>
-        <div className="flex items-center gap-2">
-          <a href={myUid ? "/market" : loginUrl} className="h-11 px-2.5 flex items-center gap-1.5 rounded-lg border border-[var(--color-gold)]/25 bg-[rgba(197,160,89,0.06)] hover:bg-[rgba(197,160,89,0.12)] hover:border-[var(--color-gold)]/50 transition-all">
-            <Image src="/assets/ui/icons/icon-market.png" alt="虫市" width={24} height={24} {...imgProps} />
+        <div className="flex items-center gap-2 whitespace-nowrap">
+          <a href={myUid ? "/market" : loginUrl} className="h-11 px-2.5 flex items-center gap-1.5 rounded-lg border border-[var(--color-gold)]/25 bg-[rgba(197,160,89,0.06)] hover:bg-[rgba(197,160,89,0.12)] hover:border-[var(--color-gold)]/50 transition-all shrink-0">
+            <Image src="/assets/ui/icons/icon-market.png" alt="虫市" width={24} height={24} className="shrink-0" {...imgProps} />
             <span className="text-[13px] text-white font-bold font-[family-name:var(--font-noto-serif)]">虫市</span>
           </a>
-          <a href={myUid ? "/backpack" : loginUrl} className="h-11 px-2.5 flex items-center gap-1.5 rounded-lg border border-[var(--color-gold)]/25 bg-[rgba(197,160,89,0.06)] hover:bg-[rgba(197,160,89,0.12)] hover:border-[var(--color-gold)]/50 transition-all">
-            <Image src="/assets/ui/icons/icon-backpack.png" alt="背包" width={24} height={24} {...imgProps} />
+          <a href={myUid ? "/backpack" : loginUrl} className="h-11 px-2.5 flex items-center gap-1.5 rounded-lg border border-[var(--color-gold)]/25 bg-[rgba(197,160,89,0.06)] hover:bg-[rgba(197,160,89,0.12)] hover:border-[var(--color-gold)]/50 transition-all shrink-0">
+            <Image src="/assets/ui/icons/icon-backpack.png" alt="背包" width={24} height={24} className="shrink-0" {...imgProps} />
             <span className="text-[13px] text-white font-bold font-[family-name:var(--font-noto-serif)]">背包</span>
           </a>
-          <a href={myUid ? "/ladder" : loginUrl} className="h-11 px-2.5 flex items-center gap-1.5 rounded-lg border border-[var(--color-gold)]/25 bg-[rgba(197,160,89,0.06)] hover:bg-[rgba(197,160,89,0.12)] hover:border-[var(--color-gold)]/50 transition-all">
+          <a href={myUid ? "/ladder" : loginUrl} className="h-11 px-2.5 flex items-center gap-1.5 rounded-lg border border-[var(--color-gold)]/25 bg-[rgba(197,160,89,0.06)] hover:bg-[rgba(197,160,89,0.12)] hover:border-[var(--color-gold)]/50 transition-all shrink-0">
             <span className="text-[18px]">&#9876;</span>
             <span className="text-[13px] text-white font-bold font-[family-name:var(--font-noto-serif)]">天梯</span>
           </a>
