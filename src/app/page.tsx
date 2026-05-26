@@ -8,7 +8,7 @@ import { ensureAuth, logout, getLoginUrl } from "@/lib/auth";
 
 const imgProps = { unoptimized: true };
 
-const btnClass = "w-[342px] h-[50px] rounded-[10px] border border-[var(--color-gold)]/30 bg-gradient-to-b from-[rgba(30,22,16,0.85)] to-[rgba(20,14,10,0.9)] text-[20px] font-bold text-[var(--color-gold)] font-quanheng hover:border-[var(--color-gold)]/70 hover:shadow-[0_0_12px_rgba(197,160,89,0.15)] active:scale-[0.98] transition-all disabled:opacity-40 disabled:pointer-events-none";
+const btnClass = "w-[342px] h-[50px] rounded-[10px] bg-gradient-to-b from-[rgba(30,22,16,0.85)] to-[rgba(20,14,10,0.9)] text-[20px] font-bold text-[var(--color-gold)] font-quanheng active:scale-[0.98] transition-all disabled:opacity-40 disabled:pointer-events-none";
 
 type Action = "idle" | "creating" | "joining" | "practice" | "error";
 
@@ -151,7 +151,7 @@ export default function HomePage() {
         className="object-cover object-center"
         priority
       />
-      <div className="absolute inset-0 bg-black/40" />
+
 
       {/* Top Bar */}
       <header className="relative z-[10] flex items-center justify-between px-4 h-[60px]">
@@ -171,24 +171,24 @@ export default function HomePage() {
               )}
             </div>
           ) : (
-            <a href={loginUrl} className="text-[14px] text-white font-bold hover:text-white/80 font-quanheng underline underline-offset-4">登录/注册</a>
+            <a href={loginUrl} className="text-[14px] text-black font-bold hover:text-black/80 font-quanheng underline underline-offset-4">登录/注册</a>
           )}
           {nickName && (
-            <span className="text-[var(--color-text-primary)] text-[13px] max-w-[160px] truncate font-quanheng">{nickName}</span>
+            <span className="text-black text-[13px] max-w-[160px] truncate font-quanheng">{nickName}</span>
           )}
         </div>
         <div className="flex items-center gap-2 whitespace-nowrap">
           <a href={myUid ? "/market" : loginUrl} className="h-11 px-2.5 flex items-center gap-1.5 rounded-lg border border-[var(--color-gold)]/25 bg-[rgba(197,160,89,0.06)] hover:bg-[rgba(197,160,89,0.12)] hover:border-[var(--color-gold)]/50 transition-all shrink-0">
             <Image src="/assets/ui/icons/icon-market.png" alt="虫市" width={24} height={24} className="shrink-0" {...imgProps} />
-            <span className="text-[13px] text-white font-bold font-quanheng">虫市</span>
+            <span className="text-[13px] text-black font-bold font-quanheng">虫市</span>
           </a>
           <a href={myUid ? "/backpack" : loginUrl} className="h-11 px-2.5 flex items-center gap-1.5 rounded-lg border border-[var(--color-gold)]/25 bg-[rgba(197,160,89,0.06)] hover:bg-[rgba(197,160,89,0.12)] hover:border-[var(--color-gold)]/50 transition-all shrink-0">
             <Image src="/assets/ui/icons/icon-backpack.png" alt="背包" width={24} height={24} className="shrink-0" {...imgProps} />
-            <span className="text-[13px] text-white font-bold font-quanheng">背包</span>
+            <span className="text-[13px] text-black font-bold font-quanheng">背包</span>
           </a>
           <a href={myUid ? "/ladder" : loginUrl} className="h-11 px-2.5 flex items-center gap-1.5 rounded-lg border border-[var(--color-gold)]/25 bg-[rgba(197,160,89,0.06)] hover:bg-[rgba(197,160,89,0.12)] hover:border-[var(--color-gold)]/50 transition-all shrink-0">
             <span className="text-[18px]">&#9876;</span>
-            <span className="text-[13px] text-white font-bold font-quanheng">天梯</span>
+            <span className="text-[13px] text-black font-bold font-quanheng">天梯</span>
           </a>
         </div>
       </header>
@@ -213,7 +213,7 @@ export default function HomePage() {
 
       {/* Buttons */}
       <section className="absolute bottom-0 left-0 right-0 z-[10] flex flex-col items-center gap-3 px-4 pb-[110px]">
-        <a href={myUid ? "/matchmake" : loginUrl} className={btnClass + " inline-flex items-center justify-center border-[var(--color-gold)]/60 bg-gradient-to-b from-[rgba(197,160,89,0.15)] to-[rgba(20,14,10,0.9)]"}>匹配对战</a>
+        <a href={myUid ? "/matchmake" : loginUrl} className={btnClass + " inline-flex items-center justify-center bg-gradient-to-b from-[rgba(197,160,89,0.15)] to-[rgba(20,14,10,0.9)]"}>匹配对战</a>
 
         <button type="button" onClick={myUid ? handleCreateRoom : () => window.location.href = loginUrl} disabled={isLoading} className={btnClass}>开房对战</button>
 
@@ -222,7 +222,7 @@ export default function HomePage() {
             <input type="text" value={roomCode} onChange={(e) => setRoomCode(e.target.value.toUpperCase())} maxLength={5} placeholder="输入房间号"
               className="flex-1 h-[50px] rounded-[10px] border border-[var(--color-gold)]/30 bg-[rgba(20,14,10,0.9)] px-4 text-center text-[20px] tracking-[6px] text-[var(--color-text-primary)] font-[family-name:var(--font-noto-serif)] placeholder:text-[var(--color-text-muted)] outline-none focus:border-[var(--color-gold)]/70 uppercase" />
             <button type="button" onClick={handleJoinRoom} disabled={roomCode.length !== 5 || isLoading}
-              className={`h-[50px] px-6 rounded-[10px] border border-[var(--color-gold)]/30 bg-gradient-to-b from-[rgba(30,22,16,0.85)] to-[rgba(20,14,10,0.9)] text-[18px] font-bold whitespace-nowrap flex items-center justify-center font-[family-name:var(--font-noto-serif)] ${roomCode.length === 5 ? "text-[#4a90d9] hover:border-[#4a90d9]/70" : "text-[var(--color-text-muted)] opacity-40 pointer-events-none"}`}>进入</button>
+              className={`h-[50px] px-6 rounded-[10px] bg-gradient-to-b from-[rgba(30,22,16,0.85)] to-[rgba(20,14,10,0.9)] text-[18px] font-bold whitespace-nowrap flex items-center justify-center font-[family-name:var(--font-noto-serif)] ${roomCode.length === 5 ? "text-[#4a90d9]" : "text-[var(--color-text-muted)] opacity-40 pointer-events-none"}`}>进入</button>
           </div>
         ) : (
           <button type="button" onClick={myUid ? () => setShowJoinInput(true) : () => window.location.href = loginUrl} className={btnClass}>加入房间</button>
