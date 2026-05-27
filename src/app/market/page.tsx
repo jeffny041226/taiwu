@@ -6,6 +6,7 @@ import Image from "next/image";
 import { TopBar } from "@/components/layout/TopBar";
 import { api } from "@/lib/api";
 import { ensureAuth } from "@/lib/auth";
+import { useAudio } from "@/hooks/useAudio";
 import { TIER_COLORS, TIER_LABELS, TRAIT_LABELS } from "@taiwu/shared/config/game";
 import type { CricketTemplate, Tier } from "@taiwu/shared/types/cricket";
 
@@ -39,6 +40,10 @@ export default function MarketPage() {
   const [isRedeeming, setIsRedeeming] = useState(false);
   const [redeemError, setRedeemError] = useState("");
 
+  // Audio
+  const { playBgm, stopBgm, playSfx } = useAudio();
+  useEffect(() => { playBgm("market"); return () => { stopBgm(); }; }, [playBgm, stopBgm]);
+
   // Auth init + load chances
   useEffect(() => {
     ensureAuth();
@@ -63,6 +68,7 @@ export default function MarketPage() {
           setErrorMsg("支付成功，开始抽笼...");
 
           // 自动抽卡
+          playSfx("gachaOpen");
           const data = await api.pullGacha(selectedCount);
           setResults(data.results as GachaResult[]);
           setShowResults(true);
@@ -100,6 +106,7 @@ export default function MarketPage() {
     if (chances >= selectedCount) {
       setIsPulling(true);
       try {
+        playSfx("gachaOpen");
         const data = await api.pullGacha(selectedCount);
         setResults(data.results as GachaResult[]);
         setShowResults(true);
@@ -149,6 +156,7 @@ export default function MarketPage() {
       if (paid.success) {
         setChances(paid.chances);
         setErrorMsg("支付成功，开始抽笼...");
+        playSfx("gachaOpen");
         const data = await api.pullGacha(selectedCount);
         setResults(data.results as GachaResult[]);
         setShowResults(true);
@@ -166,6 +174,16 @@ export default function MarketPage() {
   const cancelMockPayment = () => {
     setPendingPayment(null);
   };
+
+  // Gacha reveal SFX
+  useEffect(() => {
+    if (!showResults || results.length === 0) return;
+    playSfx("gachaReveal");
+    const hasLegendary = results.some(r => r.template?.tier === "legendary");
+    if (hasLegendary) {
+      setTimeout(() => playSfx("gachaLegendary"), 600);
+    }
+  }, [showResults, results, playSfx]);
 
   const closeResults = () => {
     setShowResults(false);

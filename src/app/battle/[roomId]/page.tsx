@@ -8,6 +8,7 @@ import { LoadingOverlay } from "@/components/game/LoadingOverlay";
 import { calcRoundResult, type BattleCalcInput } from "@taiwu/shared/lib/battle-calc";
 import { BLOCK_REDUCTION, AUTO_READY_DELAY, BATTLE_MODE, BATTLE_MODE_LABELS } from "@taiwu/shared/config/game";
 import { useWebSocket } from "@/hooks/useWebSocket";
+import { useAudio } from "@/hooks/useAudio";
 import { ensureAuth, getLoginUrl } from "@/lib/auth";
 import { api } from "@/lib/api";
 import type { CricketTemplate } from "@taiwu/shared/types/cricket";
@@ -202,6 +203,11 @@ export default function BattlePage({ params }: { params: Promise<{ roomId: strin
   const [powerChange, setPowerChange] = useState<{ power: number; delta: number; won: boolean } | null>(null);
   const [rematchLoading, setRematchLoading] = useState(false);
   const [showDamage, setShowDamage] = useState<{ dmg: number; target: "me" | "enemy" } | null>(null);
+
+  // Audio
+  const { playBgm, stopBgm, playSfx } = useAudio();
+  useEffect(() => { playBgm("battle"); return () => { stopBgm(); }; }, [playBgm, stopBgm]);
+
   const [lastMyAction, setLastMyAction] = useState<Action | null>(null);
   const [lastEnemyAction, setLastEnemyAction] = useState<Action | null>(null);
   const [showRoundEnd, setShowRoundEnd] = useState(false);
@@ -288,6 +294,9 @@ export default function BattlePage({ params }: { params: Promise<{ roomId: strin
       setLastMyAction(r.myAction);
       setLastEnemyAction(r.enemyAction);
       setWaitingForAction(false);
+      // 播放招式音效
+      playSfx(r.myAction === "heavy_strike" ? "heavyHit" : r.myAction === "feint" ? "feint" : r.myAction === "block" ? "block" : "chirp");
+      playSfx(r.enemyAction === "heavy_strike" ? "heavyHit" : r.enemyAction === "feint" ? "feint" : r.enemyAction === "block" ? "block" : "chirp");
       // 记录当前蛐蛐索引，用于 setTimeout 内判断蛐蛐是否已切换
       const roundMyIdx = s.myIdx;
       const roundEnemyIdx = s.enemyIdx;
@@ -354,10 +363,12 @@ export default function BattlePage({ params }: { params: Promise<{ roomId: strin
         if (r.enemyDamage > 0) {
           setShowDamage({ dmg: -r.enemyDamage, target: "enemy" });
           addLog(myName + " 造成 " + r.enemyDamage + " 伤害" + (r.myCounter > 1 ? " (克制x" + r.myCounter + ")" : ""));
+          playSfx("damageTaken");
         }
         if (r.myDamage > 0) {
           setShowDamage({ dmg: -r.myDamage, target: "me" });
           addLog(enemyName + " 造成 " + r.myDamage + " 伤害" + (r.enemyCounter > 1 ? " (克制x" + r.enemyCounter + ")" : ""));
+          playSfx("damageTaken");
         }
         if (r.myBlocked) {
           const pct = Math.round(BLOCK_REDUCTION[r.myAction === "heavy_strike" ? "vs_heavy_strike" : "vs_feint"] * 100);
@@ -412,7 +423,11 @@ export default function BattlePage({ params }: { params: Promise<{ roomId: strin
       const r = payload as { winner: string; myScore: number; enemyScore: number; defeatedCricket: { side: string; name: string; title: string } | null };
       const iWon = r.winner === "me";
       addLog((iWon ? "我方" : "对方") + "赢得本局！比分 " + r.myScore + ":" + r.enemyScore);
-      if (r.defeatedCricket) addLog(r.defeatedCricket.name + " 战败");
+      if (r.defeatedCricket) {
+        addLog(r.defeatedCricket.name + " 战败");
+        playSfx("cricketDefeat");
+      }
+      playSfx(iWon ? "roundWin" : "roundLose");
     };
 
     const handleGameOver = (payload: unknown) => {
@@ -421,6 +436,7 @@ export default function BattlePage({ params }: { params: Promise<{ roomId: strin
       setTimeout(() => {
         setPvpPhase("finished");
         setPvpGameOver({ winner: r.winner, myScore: r.myScore, enemyScore: r.enemyScore });
+        playSfx(r.winner === "me" ? "gameWin" : "gameLose");
       }, 1200);
     };
 
@@ -470,7 +486,7 @@ export default function BattlePage({ params }: { params: Promise<{ roomId: strin
       off("battle:roundWin", handleRoundWin);
       off("battle:gameOver", handleGameOver);
       off("battle:cricketChange", handleCricketChange);
-      off("battle:powerUpdate");
+      off("battle:powerUpdate", () => {});
       off("room:error", handleError);
       offEvent("reconnect", handleReconnect);
     };
@@ -524,6 +540,14 @@ export default function BattlePage({ params }: { params: Promise<{ roomId: strin
   const [trainGameOver, setTrainGameOver] = useState(false);
   const [trainWinner, setTrainWinner] = useState("");
   const [trainAttacking, setTrainAttacking] = useState(false);
+
+  // Victory BGM on game over win
+  useEffect(() => {
+    const pvpWon = pvpPhase === "finished" && pvpGameOver?.winner === "me";
+    const pveWon = !wsReady && isPractice && trainGameOver && trainWinner === "你";
+    if (pvpWon || pveWon) playBgm("victory");
+  }, [pvpPhase, pvpGameOver, isPractice, trainGameOver, trainWinner, wsReady, playBgm]);
+  const lastPveDefeatRef = useRef({ side: "" as "" | "me" | "enemy", idx: -1 });
 
   // Load player team from backpack for practice mode
   useEffect(() => {
@@ -616,12 +640,15 @@ export default function BattlePage({ params }: { params: Promise<{ roomId: strin
     addLog("--- 第" + rnd + "回合 ---");
     addLog(p.name + " -> " + ACTION_LABEL[pAction]);
     addLog(a.name + " -> " + ACTION_LABEL[aAction]);
+    // 招式音效
+    playSfx(pAction === "heavy_strike" ? "heavyHit" : pAction === "feint" ? "feint" : pAction === "block" ? "block" : "chirp");
+    playSfx(aAction === "heavy_strike" ? "heavyHit" : aAction === "feint" ? "feint" : aAction === "block" ? "block" : "chirp");
 
     const pDmg = result.defenderResult.damage;
     const aDmg = result.attackerResult.damage;
     setTimeout(() => {
-      if (aDmg > 0) { setShowDamage({ dmg: -aDmg, target: "enemy" }); setTrainAiHp(h => Math.max(0, h - aDmg)); addLog(p.name + " 造成 " + aDmg + " 伤害" + (result.attackerResult.counterApplied > 1 ? " (克制x" + result.attackerResult.counterApplied + ")" : "")); }
-      if (pDmg > 0) { setShowDamage({ dmg: -pDmg, target: "me" });   setTrainPlayerHp(h => Math.max(0, h - pDmg)); addLog(a.name + " 造成 " + pDmg + " 伤害" + (result.defenderResult.counterApplied > 1 ? " (克制x" + result.defenderResult.counterApplied + ")" : "")); }
+      if (aDmg > 0) { setShowDamage({ dmg: -aDmg, target: "enemy" }); setTrainAiHp(h => Math.max(0, h - aDmg)); addLog(p.name + " 造成 " + aDmg + " 伤害" + (result.attackerResult.counterApplied > 1 ? " (克制x" + result.attackerResult.counterApplied + ")" : "")); playSfx("damageTaken"); }
+      if (pDmg > 0) { setShowDamage({ dmg: -pDmg, target: "me" });   setTrainPlayerHp(h => Math.max(0, h - pDmg)); addLog(a.name + " 造成 " + pDmg + " 伤害" + (result.defenderResult.counterApplied > 1 ? " (克制x" + result.defenderResult.counterApplied + ")" : "")); playSfx("damageTaken"); }
       if (result.attackerResult.isBlocked) addLog(a.name + " 格挡，减免 " + Math.round(BLOCK_REDUCTION[pAction === "heavy_strike" ? "vs_heavy_strike" : "vs_feint"] * 100) + "% 伤害");
       if (result.defenderResult.isBlocked) addLog(p.name + " 格挡，减免 " + Math.round(BLOCK_REDUCTION[aAction === "heavy_strike" ? "vs_heavy_strike" : "vs_feint"] * 100) + "% 伤害");
       if (result.attackerResult.staminaDelta) addLog(p.name + " 耐力 " + (result.attackerResult.staminaDelta > 0 ? "+" : "") + result.attackerResult.staminaDelta);
@@ -665,6 +692,12 @@ export default function BattlePage({ params }: { params: Promise<{ roomId: strin
     if (wsReady || !isPractice || trainGameOver) return;
     if (trainAiHp <= 0 && playerTeam.length > 0) {
       const next = currentAiIdx + 1;
+      // Play defeat SFX once per cricket
+      if (lastPveDefeatRef.current.side !== "enemy" || lastPveDefeatRef.current.idx !== currentAiIdx) {
+        lastPveDefeatRef.current = { side: "enemy", idx: currentAiIdx };
+        playSfx("cricketDefeat");
+        playSfx("roundWin");
+      }
       if (next >= aiTeam.length) { setTrainGameOver(true); setTrainWinner("你"); }
       else {
         setCurrentAiIdx(next);
@@ -676,12 +709,18 @@ export default function BattlePage({ params }: { params: Promise<{ roomId: strin
         }
       }
     }
-  }, [trainAiHp, currentAiIdx, aiTeam, isPractice, trainGameOver, playerTeam.length, wsReady]);
+  }, [trainAiHp, currentAiIdx, aiTeam, isPractice, trainGameOver, playerTeam.length, wsReady, playSfx]);
 
   useEffect(() => {
     if (wsReady || !isPractice || trainGameOver) return;
     if (trainPlayerHp <= 0 && playerTeam.length > 0) {
       const next = currentPlayerIdx + 1;
+      // Play defeat SFX once per cricket
+      if (lastPveDefeatRef.current.side !== "me" || lastPveDefeatRef.current.idx !== currentPlayerIdx) {
+        lastPveDefeatRef.current = { side: "me", idx: currentPlayerIdx };
+        playSfx("cricketDefeat");
+        playSfx("roundLose");
+      }
       if (next >= playerTeam.length) { setTrainGameOver(true); setTrainWinner("AI"); }
       else {
         setCurrentPlayerIdx(next);
@@ -693,7 +732,19 @@ export default function BattlePage({ params }: { params: Promise<{ roomId: strin
         }
       }
     }
-  }, [trainPlayerHp, currentPlayerIdx, playerTeam, isPractice, trainGameOver, playerTeam.length, wsReady]);
+  }, [trainPlayerHp, currentPlayerIdx, playerTeam, isPractice, trainGameOver, playerTeam.length, wsReady, playSfx]);
+
+  // PVE game over SFX
+  const pveGameOverFired = useRef(false);
+  useEffect(() => {
+    if (wsReady || !isPractice || !trainGameOver) {
+      pveGameOverFired.current = false;
+      return;
+    }
+    if (pveGameOverFired.current) return;
+    pveGameOverFired.current = true;
+    playSfx(trainWinner === "你" ? "gameWin" : "gameLose");
+  }, [trainGameOver, trainWinner, isPractice, wsReady, playSfx]);
 
   // ── 当前蛐蛐（WS 连接时使用 PVP 数据流）──
   const usePvpData = wsReady || !isPractice;

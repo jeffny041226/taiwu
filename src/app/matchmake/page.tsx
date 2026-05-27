@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { MapleLeaves } from "@/components/game/MapleLeaves";
 import { useWebSocket } from "@/hooks/useWebSocket";
+import { useAudio } from "@/hooks/useAudio";
 import { ensureAuth, getLoginUrl } from "@/lib/auth";
 
 const imgProps = { unoptimized: true };
@@ -39,6 +40,10 @@ function MatchmakeContent() {
   const [errorMsg, setErrorMsg] = useState("");
   const [elapsed, setElapsed] = useState(0);
   const cancelSentRef = useRef(false);
+
+  // Audio
+  const { playBgm, stopBgm } = useAudio();
+  useEffect(() => { playBgm("home"); return () => { stopBgm(); }; }, [playBgm, stopBgm]);
 
   // Auth init — redirect to /auth if no JWT
   useEffect(() => {
