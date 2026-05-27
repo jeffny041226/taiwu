@@ -5,6 +5,7 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { TopBar } from "@/components/layout/TopBar";
 import { LoadingOverlay } from "@/components/game/LoadingOverlay";
+import { useAudio } from "@/hooks/useAudio";
 import { api } from "@/lib/api";
 import { ensureAuth } from "@/lib/auth";
 import type { CricketTemplate } from "@taiwu/shared/types/cricket";
@@ -20,6 +21,10 @@ export default function DefensePage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState("");
+
+  // Audio
+  const { playBgm, stopBgm } = useAudio();
+  useEffect(() => { playBgm("home"); return () => { stopBgm(); }; }, [playBgm, stopBgm]);
 
   useEffect(() => { ensureAuth(); }, []);
 

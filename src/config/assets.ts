@@ -122,9 +122,9 @@ export const ASSETS = {
       gachaOpen:      "/assets/audio/sfx/sfx-gacha-open.mp3",
       gachaReveal:    "/assets/audio/sfx/sfx-gacha-reveal.mp3",
       gachaLegendary: "/assets/audio/sfx/sfx-gacha-legendary.mp3",
-      roomJoin:       "/assets/audio/sfx/sfx-room-join.mp3",
-      ready:          "/assets/audio/sfx/sfx-ready.mp3",
-      countdown:      "/assets/audio/sfx/sfx-countdown.mp3",
+      roomJoin:       "",   // 选蛐蛐页面禁用
+      ready:          "",   // 选蛐蛐页面禁用
+      countdown:      "",   // 选蛐蛐页面禁用
       uiPanel:        "/assets/audio/sfx/sfx-ui-panel.mp3",
       cricketAmbient: "/assets/audio/sfx/sfx-cricket-chirp.mp3",
     },

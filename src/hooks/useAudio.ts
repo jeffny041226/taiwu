@@ -10,15 +10,18 @@ export function useAudio() {
   const [sfxOn, setSfxOn] = useState(true);
 
   useEffect(() => {
+    console.log("[useAudio] init, bgmEnabled:", audioManager.isBgmEnabled());
     setBgmOn(audioManager.isBgmEnabled());
     setSfxOn(audioManager.isSfxEnabled());
   }, []);
 
   const playBgm = useCallback((key: BgmKey) => {
+    console.log("[useAudio] playBgm:", key);
     audioManager.playBgm(key);
   }, []);
 
   const stopBgm = useCallback(() => {
+    console.log("[useAudio] stopBgm");
     audioManager.stopBgm();
   }, []);
 
@@ -27,7 +30,9 @@ export function useAudio() {
   }, []);
 
   const toggleBgm = useCallback(() => {
+    console.log("[useAudio] toggleBgm called");
     const on = audioManager.toggleBgm();
+    console.log("[useAudio] toggleBgm result:", on);
     setBgmOn(on);
   }, []);
 

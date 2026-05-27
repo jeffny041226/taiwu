@@ -1,9 +1,12 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
 import Image from "next/image";
 import { LoadingOverlay } from "@/components/game/LoadingOverlay";
 import { useWebSocket } from "@/hooks/useWebSocket";
+import { useAudio } from "@/hooks/useAudio";
 import { ensureAuth, logout, getLoginUrl } from "@/lib/auth";
 
 const imgProps = { unoptimized: true };
@@ -13,6 +16,7 @@ const btnClass = "w-[342px] h-[50px] rounded-[10px] bg-gradient-to-b from-[rgba(
 type Action = "idle" | "practice" | "error";
 
 export default function HomePage() {
+  const router = useRouter();
   const [myUid, setMyUid] = useState("");
   const [nickName, setNickName] = useState("");
   const [token, setToken] = useState("");
@@ -22,6 +26,10 @@ export default function HomePage() {
   const [showLogout, setShowLogout] = useState(false);
   const [createdRoomId, setCreatedRoomId] = useState<string | null>(null);
   const [isPracticeMode, setIsPracticeMode] = useState(false);
+
+  // Audio
+  const { playBgm, stopBgm, bgmOn, sfxOn, toggleBgm, toggleSfx } = useAudio();
+  useEffect(() => { playBgm("home"); return () => { stopBgm(); }; }, [playBgm, stopBgm]);
 
   // Auth init
   useEffect(() => {
@@ -84,13 +92,14 @@ export default function HomePage() {
     };
   }, [wsReady]);
 
-  // Navigate on room creation (practice mode)
+  // Navigate on room creation (practice mode) — 导航前停掉 BGM
   useEffect(() => {
     if (!createdRoomId) return;
     if (isPracticeMode) {
-      window.location.href = `/room/${createdRoomId}?uid=${myUid}&mode=practice`;
+      stopBgm();
+      router.push(`/room/${createdRoomId}?uid=${myUid}&mode=practice`);
     }
-  }, [createdRoomId, isPracticeMode, myUid]);
+  }, [createdRoomId, isPracticeMode, myUid, router, stopBgm]);
 
   useEffect(() => { setIsPracticeMode(false); }, []);
 
@@ -152,15 +161,21 @@ export default function HomePage() {
           )}
         </div>
         <div className="flex items-center gap-2 whitespace-nowrap">
-          <a href={myUid ? "/market" : loginUrl} className="h-11 px-3 flex items-center rounded-lg border border-[var(--color-gold)]/25 bg-[rgba(197,160,89,0.06)] hover:bg-[rgba(197,160,89,0.12)] hover:border-[var(--color-gold)]/50 transition-all shrink-0">
+          <button type="button" onClick={toggleBgm} className="h-7 w-7 flex items-center justify-center rounded-full border border-[var(--color-gold)]/25 bg-[rgba(197,160,89,0.06)] hover:border-[var(--color-gold)]/50 transition-all shrink-0" title={bgmOn ? "关闭音乐" : "开启音乐"}>
+            <span className="text-[13px]">{bgmOn ? "🎵" : "🔇"}</span>
+          </button>
+          <button type="button" onClick={toggleSfx} className="h-7 w-7 flex items-center justify-center rounded-full border border-[var(--color-gold)]/25 bg-[rgba(197,160,89,0.06)] hover:border-[var(--color-gold)]/50 transition-all shrink-0" title={sfxOn ? "关闭音效" : "开启音效"}>
+            <span className="text-[11px]">{sfxOn ? "🔊" : "🔇"}</span>
+          </button>
+          <Link href={myUid ? "/market" : loginUrl} className="h-11 px-3 flex items-center rounded-lg border border-[var(--color-gold)]/25 bg-[rgba(197,160,89,0.06)] hover:bg-[rgba(197,160,89,0.12)] hover:border-[var(--color-gold)]/50 transition-all shrink-0">
             <span className="text-[13px] text-black font-bold font-quanheng">虫市</span>
-          </a>
-          <a href={myUid ? "/backpack" : loginUrl} className="h-11 px-3 flex items-center rounded-lg border border-[var(--color-gold)]/25 bg-[rgba(197,160,89,0.06)] hover:bg-[rgba(197,160,89,0.12)] hover:border-[var(--color-gold)]/50 transition-all shrink-0">
+          </Link>
+          <Link href={myUid ? "/backpack" : loginUrl} className="h-11 px-3 flex items-center rounded-lg border border-[var(--color-gold)]/25 bg-[rgba(197,160,89,0.06)] hover:bg-[rgba(197,160,89,0.12)] hover:border-[var(--color-gold)]/50 transition-all shrink-0">
             <span className="text-[13px] text-black font-bold font-quanheng">背包</span>
-          </a>
-          <a href={myUid ? "/handbook" : loginUrl} className="h-11 px-3 flex items-center rounded-lg border border-[var(--color-gold)]/25 bg-[rgba(197,160,89,0.06)] hover:bg-[rgba(197,160,89,0.12)] hover:border-[var(--color-gold)]/50 transition-all shrink-0">
+          </Link>
+          <Link href={myUid ? "/handbook" : loginUrl} className="h-11 px-3 flex items-center rounded-lg border border-[var(--color-gold)]/25 bg-[rgba(197,160,89,0.06)] hover:bg-[rgba(197,160,89,0.12)] hover:border-[var(--color-gold)]/50 transition-all shrink-0">
             <span className="text-[13px] text-black font-bold font-quanheng">图鉴</span>
-          </a>
+          </Link>
 
         </div>
       </header>
@@ -185,11 +200,11 @@ export default function HomePage() {
 
       {/* Buttons */}
       <section className="absolute bottom-0 left-0 right-0 z-[10] flex flex-col items-center gap-3 px-4 pb-[110px]">
-        <a href={myUid ? "/matchmake" : loginUrl} className={btnClass + " inline-flex items-center justify-center bg-[rgba(197,160,89,0.12)]"}>匹配对战</a>
+        <Link href={myUid ? "/matchmake" : loginUrl} className={btnClass + " inline-flex items-center justify-center bg-[rgba(197,160,89,0.12)]"}>匹配对战</Link>
 
-        <a href={myUid ? "/room/create" : loginUrl} className={btnClass + " inline-flex items-center justify-center"}>开房对战</a>
+        <Link href={myUid ? "/room/create" : loginUrl} className={btnClass + " inline-flex items-center justify-center"}>开房对战</Link>
 
-        <a href={myUid ? "/ladder" : loginUrl} className={btnClass + " inline-flex items-center justify-center"}>天梯</a>
+        <Link href={myUid ? "/ladder" : loginUrl} className={btnClass + " inline-flex items-center justify-center"}>天梯</Link>
 
         <button type="button" onClick={myUid ? handlePractice : () => window.location.href = loginUrl} disabled={isLoading} className={btnClass}>训练</button>
       </section>

@@ -10,6 +10,7 @@ import { ASSETS } from "@/config/assets";
 import { api } from "@/lib/api";
 import { ensureAuth } from "@/lib/auth";
 import { useWebSocket } from "@/hooks/useWebSocket";
+import { useAudio } from "@/hooks/useAudio";
 
 const imgProps = { unoptimized: true };
 
@@ -39,6 +40,10 @@ export default function LadderPage() {
   const [myCrickets, setMyCrickets] = useState<any[]>([]);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [challenging, setChallenging] = useState(false);
+
+  // Audio
+  const { playBgm, stopBgm } = useAudio();
+  useEffect(() => { playBgm("home"); return () => { stopBgm(); }; }, [playBgm, stopBgm]);
 
   // Auth
   useEffect(() => {

@@ -8,6 +8,8 @@ import { LoadingOverlay } from "@/components/game/LoadingOverlay";
 import { CRICKET_SELECTION_TIMEOUT, TIER_COLORS, TRAIT_LABELS, TIER_LABELS, BATTLE_MODE, BATTLE_MODE_LABELS } from "@taiwu/shared/config/game";
 import { useCountdown } from "@/hooks/useCountdown";
 import { useWebSocket } from "@/hooks/useWebSocket";
+import { useAudio } from "@/hooks/useAudio";
+import { audioManager } from "@/lib/audio-manager";
 import { ensureAuth, getLoginUrl } from "@/lib/auth";
 import { api } from "@/lib/api";
 import type { CricketTemplate, Tier } from "@taiwu/shared/types/cricket";
@@ -78,6 +80,12 @@ export default function RoomPage() {
 
   const wsReady = myUid && token;
 
+  // Audio — 房间页面静音（不改其他页面的 BGM 逻辑）
+  const { playSfx } = useAudio();
+  useEffect(() => {
+    audioManager.stopBgm();
+  }, []);
+
   const autoReady = useCallback(() => {
     if (!isReady && wsReady) {
       const autoIds = crickets.length > 0 ? crickets.slice(0, 3).map(c => c.id) : [1, 2, 3];
@@ -104,6 +112,21 @@ export default function RoomPage() {
   const { send, on, off, onEvent, offEvent } = useWebSocket(wsReady ? roomId : null, token);
 
   const { count, isRunning, start, stop, reset } = useCountdown(CRICKET_SELECTION_TIMEOUT, autoReady);
+
+  // Room join SFX when opponent appears
+  const prevOpponentRef = useRef(false);
+  useEffect(() => {
+    if (opponent && !prevOpponentRef.current) {
+      prevOpponentRef.current = true;
+      playSfx("roomJoin");
+    }
+    if (!opponent) prevOpponentRef.current = false;
+  }, [opponent, playSfx]);
+
+  // Countdown SFX (beep on last 5 seconds)
+  useEffect(() => {
+    if (isRunning && count <= 5 && count > 0) playSfx("countdown");
+  }, [count, isRunning, playSfx]);
 
   // Register WS message handlers
   useEffect(() => {
@@ -203,6 +226,7 @@ export default function RoomPage() {
       spiritBase: c!.spiritBase ?? c!.template.spiritBase,
     }));
     send("battle:ready", { roomId: roomId.toUpperCase(), uid: myUid, cricketIds: cricketStats.map(c => c.templateId), cricketStats });
+    playSfx("ready");
   };
 
   const tierColorMap: Record<string, string> = {
