@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { audioManager } from "@/lib/audio-manager";
 
-type BgmKey = "home" | "market" | "battle" | "victory";
+type BgmKey = "home" | "market" | "battle" | "victory" | "room";
 
 export function useAudio() {
   const [bgmOn, setBgmOn] = useState(true);

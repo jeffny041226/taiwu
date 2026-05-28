@@ -7,7 +7,7 @@
 import { Howl, Howler } from "howler";
 import { ASSETS } from "@/config/assets";
 
-type BgmKey = "home" | "market" | "battle" | "victory";
+type BgmKey = "home" | "market" | "battle" | "victory" | "room";
 type SfxKey =
   | "heavyHit" | "feint" | "block" | "chirp"
   | "damageTaken" | "cricketDefeat"

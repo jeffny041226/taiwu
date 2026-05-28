@@ -80,11 +80,12 @@ export default function RoomPage() {
 
   const wsReady = myUid && token;
 
-  // Audio — 房间页面静音（不改其他页面的 BGM 逻辑）
-  const { playSfx } = useAudio();
+  // Audio — BGM 受首页开关控制，进入播放退出停止
+  const { playBgm, playSfx } = useAudio();
   useEffect(() => {
-    audioManager.stopBgm();
-  }, []);
+    playBgm("room");
+    return () => { audioManager.stopBgm(); };
+  }, [playBgm]);
 
   const autoReady = useCallback(() => {
     if (!isReady && wsReady) {

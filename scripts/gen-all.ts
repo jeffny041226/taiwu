@@ -131,7 +131,7 @@ async function main() {
 
   // ====== 音频 ======
   const mp3 = (d: number) => { const n = Math.max(1, Math.ceil(d/26.12)); return Buffer.concat(Array.from({length:n},()=>Buffer.concat([Buffer.from([0xFF,0xFB,0x90,0x00]),Buffer.alloc(32,0),Buffer.alloc(381,0)]))); };
-  for (const [f,d] of [["bgm-home.mp3",60000],["bgm-market.mp3",60000],["bgm-battle.mp3",90000],["bgm-victory.mp3",15000]]) fs.writeFileSync(path.join(OUT,"audio/bgm",f), mp3(d));
+  for (const [f,d] of [["bgm-home.mp3",60000],["bgm-market.mp3",60000],["bgm-battle.mp3",90000],["bgm-victory.mp3",15000],["bgm-room.mp3",60000]]) fs.writeFileSync(path.join(OUT,"audio/bgm",f), mp3(d));
   for (const [f,d] of [["sfx-heavy-hit.mp3",400],["sfx-feint.mp3",300],["sfx-block.mp3",400],["sfx-chirp.mp3",650],["sfx-damage-taken.mp3",250],["sfx-cricket-defeat.mp3",650],["sfx-round-win.mp3",1200],["sfx-round-lose.mp3",1200],["sfx-game-win.mp3",2500],["sfx-game-lose.mp3",2500],["sfx-button-click.mp3",150],["sfx-gacha-open.mp3",650],["sfx-gacha-reveal.mp3",400],["sfx-gacha-legendary.mp3",1200],["sfx-room-join.mp3",400],["sfx-ready.mp3",250],["sfx-countdown.mp3",150],["sfx-ui-panel.mp3",250],["sfx-cricket-chirp.mp3",800]]) fs.writeFileSync(path.join(OUT,"audio/sfx",f), mp3(d));
 
   console.log("全部素材生成完毕 (SVG 透明底 + PNG 占位)");
