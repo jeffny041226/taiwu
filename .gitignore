@@ -4,7 +4,10 @@ node_modules
 .env
 .env.local
 .DS_Store
+.claude
+.reasonix
 temp
+scripts
 minimax-output
 .cricket-*.swp
 .cricket-*.swo

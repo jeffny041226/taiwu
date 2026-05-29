@@ -6,8 +6,10 @@
 # ---- Build stage ----
 FROM node:22-alpine AS builder
 
-# 国内加速（可注释）
-RUN npm install -g pnpm
+# 中国镜像加速（如在海外可去掉这两行）
+RUN npm config set registry https://registry.npmmirror.com \
+  && npm install -g pnpm \
+  && npm config delete registry
 
 WORKDIR /app
 
@@ -29,7 +31,9 @@ RUN pnpm build
 # ============================================================
 # ---- Runtime stage ----
 FROM node:22-alpine AS runner
-RUN npm install -g pnpm
+RUN npm config set registry https://registry.npmmirror.com \
+  && npm install -g pnpm \
+  && npm config delete registry
 WORKDIR /app
 
 ENV NODE_ENV=production
