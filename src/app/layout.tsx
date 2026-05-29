@@ -26,7 +26,7 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "斗蛐蛐 — 巅峰至臻对战版",
+  title: "斗蛐蛐 — 蛐蛐江湖",
   description: "古风蛐蛐格斗游戏",
 };
 

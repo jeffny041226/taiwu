@@ -1,0 +1,49 @@
+version: "3.8"
+
+services:
+  taiwu:
+    build: .
+    image: taiwu:latest
+    container_name: taiwu
+    restart: unless-stopped
+    ports:
+      - "3000:3000"   # Next.js 前端
+      - "4000:4000"   # Express + WS 后端
+    environment:
+      - NODE_ENV=production
+      - NEXT_TELEMETRY_DISABLED=1
+      # 数据库 (Supabase)
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+      - JWT_SECRET=${JWT_SECRET:-dev-secret-change-in-production}
+      # 后端配置
+      - BACKEND_PORT=4000
+      - CORS_ORIGIN=${CORS_ORIGIN:-http://localhost:3000}
+      - BATTLE_MODE=tag_team
+      # Passport 登录
+      - PASSPORT_BASE_URL=${PASSPORT_BASE_URL:-http://passport.szwb.imgo.tv}
+      - PASSPORT_PLATFORM=${PASSPORT_PLATFORM:-7}
+      # 微信支付
+      - WX_PAY_MOCK=${WX_PAY_MOCK:-true}
+      - WX_SP_APPID=${WX_SP_APPID:-wx_placeholder_appid}
+      - WX_SP_MCHID=${WX_SP_MCHID:-placeholder_sp_mchid}
+      - WX_SUB_MCHID=${WX_SUB_MCHID:-placeholder_sub_mchid}
+      - WX_API_V3_KEY=${WX_API_V3_KEY:-placeholder_api_v3_key}
+      - WX_CERT_SERIAL=${WX_CERT_SERIAL:-placeholder_cert_serial}
+      - WX_PAY_NOTIFY_URL=${WX_PAY_NOTIFY_URL:-http://localhost:4000/api/pay/notify}
+      # 前端
+      - NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL:-http://localhost:4000/api}
+      - NEXT_PUBLIC_WS_URL=${NEXT_PUBLIC_WS_URL:-ws://localhost:4000/ws/battle}
+      - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+      - NEXT_PUBLIC_WS_PORT=4000
+    env_file:
+      - .env.local
+    volumes:
+      - ./public/assets:/app/public/assets:ro
+      - ./db:/app/db:ro
+    networks:
+      - taiwu-net
+
+networks:
+  taiwu-net:
+    driver: bridge
