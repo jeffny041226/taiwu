@@ -6,14 +6,14 @@
 # ---- Build stage ----
 FROM node:22-alpine AS builder
 
-# 中国镜像加速（如在海外可去掉这两行）
-RUN npm config set registry https://registry.npmmirror.com \
-  && npm install -g pnpm \
-  && npm config delete registry
+# 中国镜像加速（如在海外可去掉这几行）
+RUN echo 'registry=https://registry.npmmirror.com' > ~/.npmrc \
+  && npm install -g pnpm
 
 WORKDIR /app
 
-# 依赖安装（利用 layer 缓存）
+# 依赖安装（利用 layer 缓存，使用 npmmirror 避免 DNS 解析失败）
+RUN echo 'registry=https://registry.npmmirror.com' > /app/.npmrc
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
 COPY packages/shared/package.json packages/backend/package.json ./packages/
 RUN pnpm install --frozen-lockfile
@@ -31,9 +31,8 @@ RUN pnpm build
 # ============================================================
 # ---- Runtime stage ----
 FROM node:22-alpine AS runner
-RUN npm config set registry https://registry.npmmirror.com \
-  && npm install -g pnpm \
-  && npm config delete registry
+RUN echo 'registry=https://registry.npmmirror.com' > ~/.npmrc \
+  && npm install -g pnpm
 WORKDIR /app
 
 ENV NODE_ENV=production
