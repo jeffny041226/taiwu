@@ -6,10 +6,7 @@
 # ---- Build stage ----
 FROM node:22-alpine AS builder
 
-# DNS 配置（阿里云推荐）；若宿主机已配置可注释
-RUN echo 'nameserver 223.5.5.5\nnameserver 223.6.6.6' > /etc/resolv.conf
-
-# pnpm 安装（Alpine apk，走 alpine 镜像，不依赖 npm registry）
+# pnpm 安装（Alpine apk，走 alpine 镜像）
 RUN apk add --no-cache pnpm
 
 WORKDIR /app
@@ -33,8 +30,7 @@ RUN pnpm build
 # ============================================================
 # ---- Runtime stage ----
 FROM node:22-alpine AS runner
-RUN echo 'nameserver 223.5.5.5\nnameserver 223.6.6.6' > /etc/resolv.conf \
-  && apk add --no-cache pnpm
+RUN apk add --no-cache pnpm
 WORKDIR /app
 
 ENV NODE_ENV=production
