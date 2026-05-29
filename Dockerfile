@@ -5,7 +5,7 @@
 
 # ---- Build stage ----
 FROM node:22-alpine AS builder
-RUN corepack enable && corepack prepare pnpm@latest --activate
+RUN npm config set registry https://registry.npmmirror.com && npm install -g pnpm
 
 WORKDIR /app
 
