@@ -50,7 +50,8 @@ COPY --from=builder /app/packages ./packages
 EXPOSE 3000 4000
 
 CMD ["sh", "-c", "\
+  cd /app/packages/backend && \
+  ../../node_modules/.bin/tsx src/index.ts & \
   cd /app && \
-  pnpm --filter @taiwu/backend exec tsx src/index.ts & \
-  next start -p 3000 \
+  ./node_modules/.bin/next start -p 3000 \
 "]
