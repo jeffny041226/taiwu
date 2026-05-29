@@ -2,6 +2,10 @@ services:
   taiwu:
     build: .
     image: taiwu:latest
+    dns:
+      - 223.5.5.5
+      - 223.6.6.6
+      - 8.8.8.8
     container_name: taiwu
     restart: unless-stopped
     ports:

@@ -6,9 +6,11 @@
 # ---- Build stage ----
 FROM node:22-alpine AS builder
 
-# 中国镜像加速（如在海外可去掉这几行）
-RUN echo 'registry=https://registry.npmmirror.com' > ~/.npmrc \
-  && npm install -g pnpm
+# DNS 配置（阿里云推荐）；若宿主机已配置可注释
+RUN echo 'nameserver 223.5.5.5\nnameserver 223.6.6.6' > /etc/resolv.conf
+
+# pnpm 安装（Alpine apk，走 alpine 镜像，不依赖 npm registry）
+RUN apk add --no-cache pnpm
 
 WORKDIR /app
 
@@ -31,8 +33,8 @@ RUN pnpm build
 # ============================================================
 # ---- Runtime stage ----
 FROM node:22-alpine AS runner
-RUN echo 'registry=https://registry.npmmirror.com' > ~/.npmrc \
-  && npm install -g pnpm
+RUN echo 'nameserver 223.5.5.5\nnameserver 223.6.6.6' > /etc/resolv.conf \
+  && apk add --no-cache pnpm
 WORKDIR /app
 
 ENV NODE_ENV=production
