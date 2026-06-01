@@ -1,10 +1,11 @@
 import { Router } from "express";
 import { authMiddleware } from "../middleware/auth";
-import { getSupabase } from "../db/supabase";
+import { db } from "../db/client";
+import { users, userCrickets, cricketTemplates } from "../db/schema";
+import { eq, inArray, sql } from "drizzle-orm";
 import { CRICKET_TEMPLATES } from "@taiwu/shared/data/cricket-templates";
 import { pullMultiple } from "@taiwu/shared/lib/gacha-engine";
 import { generateVariant } from "@taiwu/shared/lib/cricket-utils";
-import { memoryInsert, memoryGetGachaChances, memorySetGachaChances } from "../lib/memory-store";
 
 export const gachaRouter = Router();
 
@@ -22,91 +23,70 @@ gachaRouter.post("/pull", authMiddleware, async (req, res) => {
   const activeTemplates = CRICKET_TEMPLATES.filter(t => t.isActive);
   const pulled = pullMultiple(activeTemplates, count);
 
-  // Helper: save to memory store with variant stats
-  function saveToMemory(): void {
-    const records = pulled.map(t => ({ template_id: t.id, image_key: null }));
-    const inserted = memoryInsert(uid, records);
-    const results = inserted.map(uc => {
-      const template = activeTemplates.find(t => t.id === uc.template_id);
-      return {
-        ...uc,
-        template: template ? { ...template, imageKey: `/assets/crickets/cricket-${String(((template.id - 1) % 6) + 1).padStart(3, "0")}.png` } : null,
-      };
-    });
-    res.json({ results, count });
-  }
+  // 确保用户存在
+  await db.insert(users)
+    .values({ uid, nickName: req.user!.nickName, token: uid })
+    .onDuplicateKeyUpdate({ set: { nickName: req.user!.nickName } });
 
-  const sb = getSupabase();
-  if (sb) {
-    // Ensure user exists in DB (may be missing if registered before Supabase was configured)
-    const { data: existingUser } = await sb.from("users").select("uid").eq("uid", uid).limit(1);
-    if (!existingUser || existingUser.length === 0) {
-      await sb.from("users").upsert({ uid, nick_name: req.user!.nickName, token: uid }, { onConflict: "uid" });
-    }
+  // 插入抽到的 user_crickets
+  const inserts = pulled.map(t => {
+    const v = generateVariant(t);
+    return {
+      uid,
+      templateId: t.id,
+      attack: v.attack,
+      defense: v.defense,
+      speed: v.speed,
+      maxHp: v.maxHp,
+      maxStamina: v.maxStamina,
+      spiritBase: v.spiritBase,
+    };
+  });
+  const insertedRows = await db.insert(userCrickets).values(inserts).$returningId();
 
-    const inserts = pulled.map(t => {
-      const v = generateVariant(t);
-      return {
-        uid,
-        template_id: t.id,
-        attack: v.attack,
-        defense: v.defense,
-        speed: v.speed,
-        max_hp: v.maxHp,
-        max_stamina: v.maxStamina,
-        spirit_base: v.spiritBase,
-      };
-    });
+  // 从 DB 拿云端 imageKey
+  const templateIds = pulled.map(t => t.id);
+  const tmplRows = await db
+    .select()
+    .from(cricketTemplates)
+    .where(inArray(cricketTemplates.id, templateIds));
 
-    const { data, error } = await sb.from("user_crickets").insert(inserts).select("id, template_id, attack, defense, speed, max_hp, max_stamina, spirit_base, obtained_at");
-    if (error) {
-      // 可能是缺少字段 — 回退到内存存储
-      saveToMemory();
-      return;
-    }
-
-    // Fetch templates from DB to get cloud imageKey URLs
-    const templateIds = pulled.map(t => t.id);
-    const { data: dbTemplates } = await sb.from("cricket_templates").select("*").in("id", templateIds);
-
-    const results = (data || []).map((uc: any) => {
-      const dbTmpl = dbTemplates?.find((t: any) => t.id === uc.template_id);
-      return {
-        id: uc.id,
-        template_id: uc.template_id,
-        attack: uc.attack,
-        defense: uc.defense,
-        speed: uc.speed,
-        maxHp: uc.max_hp,
-        maxStamina: uc.max_stamina,
-        spiritBase: uc.spirit_base,
-        obtained_at: uc.obtained_at,
-        template: dbTmpl ? {
-          id: dbTmpl.id,
-          name: dbTmpl.name,
-          title: dbTmpl.title,
-          tier: dbTmpl.tier,
-          attack: dbTmpl.attack,
-          defense: dbTmpl.defense,
-          speed: dbTmpl.speed,
-          hpBase: dbTmpl.hp_base,
-          staminaBase: dbTmpl.stamina_base,
-          spiritBase: dbTmpl.spirit_base,
-          trait: dbTmpl.trait,
-          gachaWeight: dbTmpl.gacha_weight,
-          isActive: dbTmpl.is_active,
-          imageKey: dbTmpl.image_key,
-        } : null,
-      };
-    });
-
-    res.json({ results, count });
-  } else {
-    saveToMemory();
-  }
+  const results = insertedRows.map((row, i) => {
+    const uc = inserts[i];
+    const dbTmpl = tmplRows.find(t => t.id === uc.templateId);
+    return {
+      id: row.id,
+      template_id: uc.templateId,
+      attack: uc.attack,
+      defense: uc.defense,
+      speed: uc.speed,
+      maxHp: uc.maxHp,
+      maxStamina: uc.maxStamina,
+      spiritBase: uc.spiritBase,
+      obtained_at: new Date(),
+      template: dbTmpl ? {
+        id: dbTmpl.id,
+        name: dbTmpl.name,
+        title: dbTmpl.title,
+        tier: dbTmpl.tier,
+        attack: dbTmpl.attack,
+        defense: dbTmpl.defense,
+        speed: dbTmpl.speed,
+        hpBase: dbTmpl.hpBase,
+        staminaBase: dbTmpl.staminaBase,
+        spiritBase: dbTmpl.spiritBase,
+        trait: dbTmpl.trait,
+        gachaWeight: dbTmpl.gachaWeight,
+        isActive: dbTmpl.isActive,
+        imageKey: dbTmpl.imageKey,
+      } : null,
+    };
+  });
 
   // 扣除抽奖次数
   await deductGachaChances(uid, count);
+
+  res.json({ results, count });
 });
 
 /** GET /api/gacha/chances — 获取抽奖次数 */
@@ -116,29 +96,21 @@ gachaRouter.get("/chances", authMiddleware, async (req, res) => {
   res.json({ chances });
 });
 
-// ── 辅助: 抽奖次数 CRUD ──
+// ── 辅助:抽奖次数 CRUD ──
 
 async function getGachaChances(uid: string): Promise<number> {
-  const sb = getSupabase();
-  if (sb) {
-    const { data } = await sb.from("users").select("gacha_chances").eq("uid", uid).single();
-    if (data) return data.gacha_chances || 0;
-    // Supabase 用户不存在 → 回退到内存
-  }
-  return memoryGetGachaChances(uid);
+  const rows = await db
+    .select({ chances: users.gachaChances })
+    .from(users)
+    .where(eq(users.uid, uid))
+    .limit(1);
+  return rows[0]?.chances ?? 0;
 }
 
 async function deductGachaChances(uid: string, count: number): Promise<void> {
-  const sb = getSupabase();
-  if (sb) {
-    const { data } = await sb.from("users").select("gacha_chances").eq("uid", uid).single();
-    if (data) {
-      const updated = Math.max(0, (data.gacha_chances || 0) - count);
-      await sb.from("users").update({ gacha_chances: updated }).eq("uid", uid);
-      return;
-    }
-    // Supabase 用户不存在 → 回退到内存
-  }
-  const current = memoryGetGachaChances(uid);
-  memorySetGachaChances(uid, Math.max(0, current - count));
+  // GREATEST 防止减成负数(虽然 getGachaChances 已经 check 了 chances >= count)
+  await db
+    .update(users)
+    .set({ gachaChances: sql`GREATEST(0, ${users.gachaChances} - ${count})` })
+    .where(eq(users.uid, uid));
 }

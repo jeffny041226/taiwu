@@ -11,6 +11,7 @@ import { useWebSocket } from "@/hooks/useWebSocket";
 import { useAudio } from "@/hooks/useAudio";
 import { ensureAuth, getLoginUrl } from "@/lib/auth";
 import { api } from "@/lib/api";
+import { getCricketImageUrl } from "@/lib/image-loader";
 import type { CricketTemplate } from "@taiwu/shared/types/cricket";
 
 type Action = "heavy_strike" | "feint" | "block" | "chirp";
@@ -58,8 +59,8 @@ const TIER_COLORS: Record<string, string> = { common: "#a0a0a0", rare: "#4a90d9"
 const ACTION_LABEL: Record<Action, string> = { heavy_strike: "猛击", feint: "虚晃", block: "格挡", chirp: "鸣叫" };
 
 function getCricketImage(cricket: Cricket): string {
-  const idx = ((cricket.id - 1) % 6) + 1;
-  return "/assets/crickets/cricket-" + String(idx).padStart(3, "0") + "-thumb.png";
+  // Battle runtime uses synthetic Cricket (no imageKey) → local fallback
+  return getCricketImageUrl(null, cricket.id);
 }
 
 function HPBar({ current, max }: { current: number; max: number }) {
@@ -541,11 +542,14 @@ export default function BattlePage({ params }: { params: Promise<{ roomId: strin
   const [trainWinner, setTrainWinner] = useState("");
   const [trainAttacking, setTrainAttacking] = useState(false);
 
-  // Victory BGM on game over win
+  // 终局 BGM — 胜/败各一首古风曲子
   useEffect(() => {
     const pvpWon = pvpPhase === "finished" && pvpGameOver?.winner === "me";
+    const pvpLost = pvpPhase === "finished" && pvpGameOver?.winner !== "me";
     const pveWon = !wsReady && isPractice && trainGameOver && trainWinner === "你";
+    const pveLost = !wsReady && isPractice && trainGameOver && trainWinner === "AI";
     if (pvpWon || pveWon) playBgm("victory");
+    else if (pvpLost || pveLost) playBgm("defeat");
   }, [pvpPhase, pvpGameOver, isPractice, trainGameOver, trainWinner, wsReady, playBgm]);
   const lastPveDefeatRef = useRef({ side: "" as "" | "me" | "enemy", idx: -1 });
 

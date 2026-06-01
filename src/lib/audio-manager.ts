@@ -7,7 +7,7 @@
 import { Howl, Howler } from "howler";
 import { ASSETS } from "@/config/assets";
 
-type BgmKey = "home" | "market" | "battle" | "victory" | "room";
+type BgmKey = "home" | "market" | "battle" | "victory" | "defeat" | "room";
 type SfxKey =
   | "heavyHit" | "feint" | "block" | "chirp"
   | "damageTaken" | "cricketDefeat"
@@ -71,8 +71,6 @@ class AudioManager {
 
     // 停止并销毁所有现有 BGM
     this._muteAllBgm();
-    this.currentBgm = null;
-    this.currentBgmKey = null;
 
     this._pendingKey = key;
 
@@ -95,15 +93,11 @@ class AudioManager {
     // 标记正在停止，防止 _resumePending 在恢复 AudioContext 时重新播放
     this._stopping = true;
 
-    // 全局静音（最可靠，直接操作 Howler 的全局音量），且不恢复
-    // 只有 _startBgm 或 playSfx 显式播放时才恢复
-    Howler.volume(0);
-
+    // 单条 BGM howl 静音 (不影响 SFX, 不动全局音量)
     const toDelete: string[] = [];
     for (const [cacheKey, howl] of this.cache.entries()) {
       if (cacheKey.endsWith("-true")) {
         console.log("[AudioMgr] stopping cached:", cacheKey, "playing:", howl.playing());
-        try { howl.volume(0); } catch {}
         try { howl.mute(true); } catch {}
         try { howl.stop(); } catch {}
         try { howl.unload(); } catch {}
@@ -115,7 +109,6 @@ class AudioManager {
     }
     if (this.currentBgm) {
       console.log("[AudioMgr] stopping currentBgm:", this.currentBgmKey, "playing:", this.currentBgm.playing());
-      try { this.currentBgm.volume(0); } catch {}
       try { this.currentBgm.mute(true); } catch {}
       try { this.currentBgm.stop(); } catch {}
       try { this.currentBgm.unload(); } catch {}
@@ -126,9 +119,6 @@ class AudioManager {
     // 清除 pending key，防止 _resumePending 恢复 BGM
     this._pendingKey = null;
 
-    // 注意：不恢复 Howler.volume(1)，保持全局静音防止延迟恢复
-    // 只有 _startBgm/playSfx 显式播放时才恢复
-
     this._stopping = false;
   }
 
@@ -136,9 +126,6 @@ class AudioManager {
   private _startBgm(key: BgmKey): void {
     console.log("[AudioMgr] _startBgm:", key, "enabled:", this.bgmEnabled, "stopping:", this._stopping);
     if (!this.bgmEnabled || this._stopping) return;
-
-    // 恢复全局音量（_muteAllBgm 设置为 0 了）
-    Howler.volume(1);
 
     const src = ASSETS.audio.bgm[key];
     const howl = this.getHowl(src, { loop: true, volume: this.bgmVolume });
@@ -194,14 +181,12 @@ class AudioManager {
   playSfx(key: SfxKey): void {
     if (!this.sfxEnabled || typeof window === "undefined") return;
 
-    // 恢复全局音量（_muteAllBgm 设置为 0 了）
-    Howler.volume(1);
-
     const src = ASSETS.audio.sfx[key];
     if (!src) return;
 
     const howl = this.getHowl(src, { volume: this.sfxVolume });
     howl.mute(false);
+    howl.stop();  // 先停掉同源上残留的播放实例，避免叠加变吵
     howl.seek(0);
     howl.play();
   }

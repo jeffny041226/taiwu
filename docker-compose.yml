@@ -1,4 +1,64 @@
 services:
+  mysql:
+    image: mysql:8.0
+    container_name: taiwu-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpw_change_in_prod}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-taiwu}
+      MYSQL_USER: ${MYSQL_USER:-taiwu}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-taiwupw_change_in_prod}
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-time-zone=+00:00
+    ports:
+      - "127.0.0.1:3306:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-p${MYSQL_ROOT_PASSWORD:-rootpw_change_in_prod}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks: [taiwu-net]
+
+  minio:
+    image: minio/minio:latest
+    container_name: taiwu-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-taiwu_admin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minio_change_in_prod}
+    ports:
+      - "9000:9000"   # S3 API (LAN-reachable,被前端/外部设备读 cricket-*.png)
+      - "127.0.0.1:9001:9001"   # Web console (内网管理)
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks: [taiwu-net]
+
+  minio-init:
+    image: minio/mc:latest
+    container_name: taiwu-minio-init
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 ${MINIO_ROOT_USER:-taiwu_admin} ${MINIO_ROOT_PASSWORD:-minio_change_in_prod} &&
+      mc mb -p local/cricket-images || true &&
+      mc anonymous set download local/cricket-images &&
+      echo 'minio-init done'
+      "
+    networks: [taiwu-net]
+    restart: "no"
+
   taiwu:
     build: .
     image: taiwu:latest
@@ -8,20 +68,36 @@ services:
       - 8.8.8.8
     container_name: taiwu
     restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
     ports:
       - "3000:3000"   # Next.js 前端
       - "4000:4000"   # Express + WS 后端
     environment:
       - NODE_ENV=production
       - NEXT_TELEMETRY_DISABLED=1
-      # 数据库 (Supabase)
-      - SUPABASE_URL=${SUPABASE_URL}
-      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
       - JWT_SECRET=${JWT_SECRET:-dev-secret-change-in-production}
-      # 后端配置
       - BACKEND_PORT=4000
       - CORS_ORIGIN=${CORS_ORIGIN:-http://localhost:3000}
       - BATTLE_MODE=tag_team
+      # MySQL
+      - MYSQL_HOST=mysql
+      - MYSQL_PORT=3306
+      - MYSQL_USER=${MYSQL_USER:-taiwu}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD:-taiwupw_change_in_prod}
+      - MYSQL_DATABASE=${MYSQL_DATABASE:-taiwu}
+      # MinIO (internal — backend uses this for S3 SDK)
+      - S3_ENDPOINT=http://minio:9000
+      - S3_REGION=us-east-1
+      - S3_BUCKET=cricket-images
+      - S3_ACCESS_KEY=${MINIO_ROOT_USER:-taiwu_admin}
+      - S3_SECRET_KEY=${MINIO_ROOT_PASSWORD:-minio_change_in_prod}
+      - S3_FORCE_PATH_STYLE=true
+      # MinIO (browser-reachable — written into image_key rows)
+      - S3_PUBLIC_URL=${S3_PUBLIC_URL:-http://localhost:9000}
       # Passport 登录
       - PASSPORT_BASE_URL=${PASSPORT_BASE_URL:-http://passport.szwb.imgo.tv}
       - PASSPORT_PLATFORM=${PASSPORT_PLATFORM:-7}
@@ -38,14 +114,17 @@ services:
       - NEXT_PUBLIC_WS_URL=${NEXT_PUBLIC_WS_URL:-ws://localhost:4000/ws/battle}
       - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
       - NEXT_PUBLIC_WS_PORT=4000
+      - NEXT_PUBLIC_S3_BASE_URL=${NEXT_PUBLIC_S3_BASE_URL:-${S3_PUBLIC_URL:-http://localhost:9000}/cricket-images}
     env_file:
       - .env.local
     volumes:
       - ./public/assets:/app/public/assets:ro
-      - ./db:/app/db:ro
-    networks:
-      - taiwu-net
+    networks: [taiwu-net]
 
 networks:
   taiwu-net:
     driver: bridge
+
+volumes:
+  mysql-data:
+  minio-data:

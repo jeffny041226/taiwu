@@ -8,6 +8,7 @@ import { LoadingOverlay } from "@/components/game/LoadingOverlay";
 import { useAudio } from "@/hooks/useAudio";
 import { api } from "@/lib/api";
 import { ensureAuth } from "@/lib/auth";
+import { getCricketImageUrl } from "@/lib/image-loader";
 import type { CricketTemplate } from "@taiwu/shared/types/cricket";
 import { TIER_COLORS, TIER_LABELS } from "@taiwu/shared/config/game";
 import type { Tier } from "@taiwu/shared/types/cricket";
@@ -81,7 +82,7 @@ export default function DefensePage() {
           const cid = selectedIds[i];
           const cricket = cid ? myCrickets.find(c => c.id === cid) : null;
           const tmpl = cricket?.template as CricketTemplate | undefined;
-          const src = tmpl?.imageKey || (tmpl ? `/assets/crickets/cricket-${String(((tmpl.id - 1) % 6) + 1).padStart(3, "0")}-thumb.png` : "");
+          const src = tmpl ? getCricketImageUrl(tmpl.imageKey, tmpl.id) : "";
           return (
             <div key={i} className="w-[100px] h-[88px] rounded-lg border-2 border-dashed border-[var(--color-gold)]/30 bg-[rgba(20,14,10,0.4)] flex items-center justify-center">
               {cricket ? (
@@ -108,7 +109,7 @@ export default function DefensePage() {
             if (!tmpl) return null;
             const selected = selectedIds.includes(c.id);
             const tierColor = TIER_COLORS[tmpl.tier as Tier]?.text || "#a0a0a0";
-            const src = tmpl.imageKey || `/assets/crickets/cricket-${String(((tmpl.id - 1) % 6) + 1).padStart(3, "0")}-thumb.png`;
+            const src = getCricketImageUrl(tmpl.imageKey, tmpl.id);
             return (
               <button key={c.id} type="button" onClick={() => toggleCricket(c.id)}
                 className={`flex items-center gap-2 p-2 rounded-lg border text-left ${selected ? "border-[var(--color-gold)] bg-[rgba(197,160,89,0.1)] shadow-[0_0_8px_rgba(197,160,89,0.1)]" : "border-white/5 bg-[rgba(20,14,10,0.6)]"}`}>

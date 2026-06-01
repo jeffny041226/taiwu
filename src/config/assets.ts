@@ -106,6 +106,7 @@ export const ASSETS = {
       market:  "/assets/audio/bgm/bgm-market.mp3",
       battle:  "/assets/audio/bgm/bgm-battle.mp3",
       victory: "/assets/audio/bgm/bgm-victory.mp3",
+      defeat:  "/assets/audio/bgm/bgm-defeat.mp3",
       room:    "/assets/audio/bgm/bgm-room.mp3",
     },
     sfx: {

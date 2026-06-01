@@ -1,27 +1,37 @@
 /**
- * S3 图片加载器
- * 根据 image_key 生成 S3 URL，支持本地开发回退
+ * Cricket image URL resolver (canonical)
+ *
+ * Post-MySQL/MinIO migration:
+ * - DB `cricket_templates.image_key` stores a full public URL (e.g. `http://localhost:9000/cricket-images/crickets/cricket-001.png`)
+ * - Just return it as-is
+ *
+ * Fallback (no imageKey) maps templateId → local /assets/crickets/cricket-NNN-thumb.png
+ * (6 unique images cycled across 20 templates)
  */
 
 const S3_BASE = process.env.NEXT_PUBLIC_S3_BASE_URL || "";
 
 /**
- * 获取蛐蛐图片 URL
- * @param imageKey S3 对象路径
- * @param size 目标尺寸 (200 or 400)
- * @returns 完整的图片 URL
+ * Resolve a cricket image URL.
+ * @param imageKey Full public URL stored in DB (post-migration) — null/undefined for local fallback
+ * @param templateId 1..20 — used to compute local fallback path
  */
 export function getCricketImageUrl(
   imageKey: string | null | undefined,
-  size: 200 | 400 = 200
+  templateId: number
 ): string {
-  if (!imageKey) {
-    return `/assets/crickets/placeholder-${size}.png`;
-  }
-  if (S3_BASE) {
-    return `${S3_BASE}/${imageKey}`;
-  }
-  return `/assets/crickets/${imageKey}`;
+  if (imageKey) return imageKey;
+  const num = ((templateId - 1) % 6) + 1;
+  return `/assets/crickets/cricket-${String(num).padStart(3, "0")}-thumb.png`;
+}
+
+/**
+ * Legacy: build a full S3 URL from a key.
+ * Kept for callers that pass raw keys (e.g. user_crickets.image_key before migration).
+ */
+export function buildS3Url(key: string): string {
+  if (key.startsWith("http")) return key;
+  return S3_BASE ? `${S3_BASE}/${key}` : `/assets/crickets/${key}`;
 }
 
 /**

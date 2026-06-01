@@ -13,11 +13,9 @@ import { aiChooseAction, createAIPlayer, createAICrickets } from "./ai-opponent"
 import { resolveCrickets, resolveCricketsWithStats, DEFAULT_CRICKET_IDS } from "./cricket-resolver";
 import type { BattleCalcInput } from "@taiwu/shared/lib/battle-calc";
 import { ACTION_TIMEOUT, CRICKET_SELECTION_TIMEOUT } from "@taiwu/shared/config/game";
-import { getSupabase } from "../db/supabase";
-import {
-  memoryGetCombatPower, memoryAdjustCombatPower,
-  memoryGetDefenseCrickets, memoryAddWin, memoryAddLoss,
-} from "../lib/memory-store";
+import { db } from "../db/client";
+import { users, userCrickets, cricketTemplates } from "../db/schema";
+import { eq, inArray, sql } from "drizzle-orm";
 
 interface WSMessage {
   type: string;
@@ -42,15 +40,16 @@ function broadcast(roomId: string, type: string, payload: unknown): void {
 // ── 战力持久化 ──
 
 async function adjustCombatPower(uid: string, delta: number): Promise<number> {
-  const sb = getSupabase();
-  if (sb) {
-    const { data } = await sb.from("users").select("combat_power").eq("uid", uid).single();
-    const current = data?.combat_power ?? 1000;
-    const updated = Math.max(0, current + delta);
-    await sb.from("users").update({ combat_power: updated }).eq("uid", uid);
-    return updated;
-  }
-  return memoryAdjustCombatPower(uid, delta);
+  await db
+    .update(users)
+    .set({ combatPower: sql`GREATEST(0, ${users.combatPower} + ${delta})` })
+    .where(eq(users.uid, uid));
+  const rows = await db
+    .select({ combatPower: users.combatPower })
+    .from(users)
+    .where(eq(users.uid, uid))
+    .limit(1);
+  return rows[0]?.combatPower ?? 1000;
 }
 
 async function persistBattleOutcome(roomId: string): Promise<void> {
@@ -64,7 +63,6 @@ async function persistBattleOutcome(roomId: string): Promise<void> {
   if (!leftUid || !rightUid) return;
 
   const leftWon = room.leftScore > room.rightScore;
-  const rightWon = room.rightScore > room.leftScore;
   const isDraw = room.leftScore === room.rightScore;
 
   if (isDraw) return;
@@ -72,21 +70,17 @@ async function persistBattleOutcome(roomId: string): Promise<void> {
   const winnerUid = leftWon ? leftUid : rightUid;
   const loserUid = leftWon ? rightUid : leftUid;
 
-  // 更新战力
+  // 战力增减(单条 UPDATE + GREATEST 防负)
   const winnerPower = await adjustCombatPower(winnerUid, 25);
   const loserPower = await adjustCombatPower(loserUid, -25);
 
-  // 更新胜负场
-  const sb = getSupabase();
-  if (sb) {
-    const { data: w } = await sb.from("users").select("wins,losses").eq("uid", winnerUid).single();
-    await sb.from("users").update({ wins: (w?.wins ?? 0) + 1 }).eq("uid", winnerUid);
-    const { data: l } = await sb.from("users").select("wins,losses").eq("uid", loserUid).single();
-    await sb.from("users").update({ losses: (l?.losses ?? 0) + 1 }).eq("uid", loserUid);
-  } else {
-    memoryAddWin(winnerUid);
-    memoryAddLoss(loserUid);
-  }
+  // 胜负场: 原子 +1,不用先读后写
+  await db.update(users)
+    .set({ wins: sql`${users.wins} + 1` })
+    .where(eq(users.uid, winnerUid));
+  await db.update(users)
+    .set({ losses: sql`${users.losses} + 1` })
+    .where(eq(users.uid, loserUid));
 
   // 通知在线玩家战力变化
   const leftWs = room.leftPlayer?.ws;
@@ -99,59 +93,71 @@ async function persistBattleOutcome(roomId: string): Promise<void> {
 // ── 挑战模式：加载目标防守阵容 ──
 
 async function loadDefenseLineup(targetUid: string): Promise<{ nickName: string; avatar?: string; crickets: any[] } | null> {
-  const sb = getSupabase();
-  if (sb) {
-    const { data: user } = await sb.from("users")
-      .select("nick_name, avatar, defense_crickets")
-      .eq("uid", targetUid).single();
+  // 1) 拿用户 + 布阵 id 列表
+  const userRows = await db
+    .select({
+      nickName: users.nickName,
+      avatar: users.avatar,
+      defense: users.defenseCrickets,
+    })
+    .from(users)
+    .where(eq(users.uid, targetUid))
+    .limit(1);
 
-    if (!user) return null;
-    const nickName = user.nick_name || "玩家";
-    const avatar = user.avatar || undefined;
-    const defenseIds: number[] = user.defense_crickets || [];
+  const user = userRows[0];
+  if (!user) return null;
+  const nickName = user.nickName || "玩家";
+  const avatar = user.avatar || undefined;
+  const defenseIds: number[] = (user.defense ?? []) as number[];
 
-    let cricketIds = defenseIds;
-    // 未布阵则随机选3只
-    if (cricketIds.length < 3) {
-      const { data: owned } = await sb.from("user_crickets")
-        .select("id").eq("uid", targetUid).limit(3);
-      cricketIds = (owned || []).map((c: any) => c.id);
-    }
-
-    if (cricketIds.length === 0) return null;
-
-    const { data: cricketData } = await sb.from("user_crickets")
-      .select("id, template_id, attack, defense, speed, max_hp, max_stamina, spirit_base")
-      .in("id", cricketIds.slice(0, 3)).eq("uid", targetUid);
-
-    if (!cricketData || cricketData.length === 0) return null;
-
-    const templateIds = cricketData.map((c: any) => c.template_id);
-    const { data: templates } = await sb.from("cricket_templates").select("*").in("id", templateIds);
-
-    const crickets = cricketData.map((c: any) => {
-      const tmpl = (templates || []).find((t: any) => t.id === c.template_id);
-      return {
-        id: c.id, templateId: c.template_id,
-        name: tmpl?.name || "蛐蛐", title: tmpl?.title || "", tier: tmpl?.tier || "common",
-        attack: c.attack, defense: c.defense, speed: c.speed,
-        maxHp: c.max_hp, hp: c.max_hp, maxStamina: c.max_stamina, stamina: c.max_stamina,
-        spirit: c.spirit_base, trait: tmpl?.trait || "fierce",
-      };
-    });
-
-    return { nickName, avatar, crickets };
+  // 2) 布阵不足 3 只 → 兜底拿任意 3 只
+  let cricketIds = defenseIds;
+  if (cricketIds.length < 3) {
+    const owned = await db
+      .select({ id: userCrickets.id })
+      .from(userCrickets)
+      .where(eq(userCrickets.uid, targetUid))
+      .limit(3);
+    cricketIds = owned.map(c => c.id);
   }
+  if (cricketIds.length === 0) return null;
 
-  // Memory fallback
-  const ids = memoryGetDefenseCrickets(targetUid);
-  return ids.length > 0
-    ? { nickName: "玩家", crickets: ids.map((id: number) => ({
-        id, templateId: 1, name: "蛐蛐", title: "", tier: "common",
-        attack: 15, defense: 15, speed: 12, maxHp: 100, hp: 100,
-        maxStamina: 100, stamina: 100, spirit: 100, trait: "fierce",
-      })) }
-    : null;
+  // 3) 拿这 3 只蛐蛐的个体属性
+  const cricketData = await db
+    .select({
+      id: userCrickets.id,
+      templateId: userCrickets.templateId,
+      attack: userCrickets.attack,
+      defense: userCrickets.defense,
+      speed: userCrickets.speed,
+      maxHp: userCrickets.maxHp,
+      maxStamina: userCrickets.maxStamina,
+      spiritBase: userCrickets.spiritBase,
+    })
+    .from(userCrickets)
+    .where(inArray(userCrickets.id, cricketIds.slice(0, 3)));
+
+  if (cricketData.length === 0) return null;
+
+  // 4) 一次性 JOIN templates(templateId IN (…))
+  const templateIds = cricketData.map(c => c.templateId);
+  const templates = await db
+    .select()
+    .from(cricketTemplates)
+    .where(inArray(cricketTemplates.id, templateIds));
+
+  const crickets = cricketData.map(c => {
+    const tmpl = templates.find(t => t.id === c.templateId);
+    return {
+      id: c.id, templateId: c.templateId,
+      name: tmpl?.name || "蛐蛐", title: tmpl?.title || "", tier: tmpl?.tier || "common",
+      attack: c.attack, defense: c.defense, speed: c.speed,
+      maxHp: c.maxHp, hp: c.maxHp, maxStamina: c.maxStamina, stamina: c.maxStamina,
+      spirit: c.spiritBase, trait: tmpl?.trait || "fierce",
+    };
+  });
+
+  return { nickName, avatar, crickets };
 }
 
 function clearActionTimer(roomId: string): void {

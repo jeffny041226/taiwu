@@ -1,7 +1,8 @@
 import { Router, Request, Response } from "express";
 import { authMiddleware } from "../middleware/auth";
-import { getSupabase } from "../db/supabase";
-import { memoryGetGachaChances, memoryAddGachaChances } from "../lib/memory-store";
+import { db } from "../db/client";
+import { users } from "../db/schema";
+import { eq, sql } from "drizzle-orm";
 import {
   WX_APP_ID, WX_MCH_ID, WX_PAY_MOCK,
   WX_SP_APPID, WX_SP_MCHID, WX_SUB_MCHID, WX_SUB_APPID,
@@ -228,38 +229,26 @@ payRouter.get("/status", authMiddleware, async (req: Request, res: Response) => 
  */
 payRouter.get("/chances", authMiddleware, async (req: Request, res: Response) => {
   const uid = req.user!.uid;
-  const sb = getSupabase();
-  if (sb) {
-    const { data } = await sb.from("users").select("gacha_chances").eq("uid", uid).single();
-    if (data) {
-      res.json({ chances: data.gacha_chances || 0 });
-      return;
-    }
-    // Supabase 用户不存在 → 回退到内存
-  }
-  res.json({ chances: memoryGetGachaChances(uid) });
+  const rows = await db
+    .select({ chances: users.gachaChances })
+    .from(users)
+    .where(eq(users.uid, uid))
+    .limit(1);
+  res.json({ chances: rows[0]?.chances ?? 0 });
 });
 
 // ── 辅助 ──
 
+/** 原子递增 — sql 表达式保证单条 UPDATE 完成加法,避免读-改-写竞争 */
 async function addGachaChances(uid: string, delta: number): Promise<number> {
-  const sb = getSupabase();
-  if (sb) {
-    const { data, error } = await sb
-      .from("users")
-      .select("gacha_chances")
-      .eq("uid", uid)
-      .single();
-
-    if (error || !data) {
-      // Supabase 用户不存在 → 回退到内存存储
-      return memoryAddGachaChances(uid, delta);
-    }
-
-    const updated = (data.gacha_chances || 0) + delta;
-    await sb.from("users").update({ gacha_chances: updated }).eq("uid", uid);
-    return updated;
-  }
-
-  return memoryAddGachaChances(uid, delta);
+  await db
+    .update(users)
+    .set({ gachaChances: sql`${users.gachaChances} + ${delta}` })
+    .where(eq(users.uid, uid));
+  const rows = await db
+    .select({ chances: users.gachaChances })
+    .from(users)
+    .where(eq(users.uid, uid))
+    .limit(1);
+  return rows[0]?.chances ?? 0;
 }

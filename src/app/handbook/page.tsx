@@ -6,6 +6,7 @@ import Link from "next/link";
 import { TopBar } from "@/components/layout/TopBar";
 import { api } from "@/lib/api";
 import { ensureAuth } from "@/lib/auth";
+import { getCricketImageUrl } from "@/lib/image-loader";
 import { TIER_COLORS, TIER_LABELS } from "@taiwu/shared/config/game";
 import type { CricketTemplate } from "@taiwu/shared/types/cricket";
 
@@ -24,8 +25,7 @@ interface HandbookEntry {
 }
 
 function templateImage(tmpl: CricketTemplate): string {
-  if (tmpl.imageKey) return tmpl.imageKey;
-  return `/assets/crickets/cricket-${String(((tmpl.id - 1) % 6) + 1).padStart(3, "0")}-thumb.png`;
+  return getCricketImageUrl(tmpl.imageKey, tmpl.id);
 }
 
 export default function HandbookPage() {

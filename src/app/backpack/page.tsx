@@ -5,6 +5,7 @@ import Image from "next/image";
 import { TopBar } from "@/components/layout/TopBar";
 import { api } from "@/lib/api";
 import { ensureAuth } from "@/lib/auth";
+import { getCricketImageUrl } from "@/lib/image-loader";
 import { TIER_COLORS, TIER_LABELS, TRAIT_LABELS } from "@taiwu/shared/config/game";
 import type { CricketTemplate, Tier, Trait } from "@taiwu/shared/types/cricket";
 
@@ -56,11 +57,9 @@ export default function BackpackPage() {
     }
   };
 
-  // Resolve image for cricket — prefer template.imageKey from API, fallback to local
-  const cricketImage = (uc: UserCricket): string => {
-    if (uc.template?.imageKey) return uc.template.imageKey;
-    return `/assets/crickets/cricket-${String(((uc.template_id - 1) % 6) + 1).padStart(3, "0")}-thumb.png`;
-  };
+  // Resolve image via canonical loader (DB imageKey → MinIO URL; fallback → local)
+  const cricketImage = (uc: UserCricket): string =>
+    getCricketImageUrl(uc.template?.imageKey ?? null, uc.template_id);
 
   const tierColorMap: Record<string, string> = {
     common: TIER_COLORS.common.text,

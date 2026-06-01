@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { useParams, useSearchParams } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { TopBar } from "@/components/layout/TopBar";
 import { LoadingOverlay } from "@/components/game/LoadingOverlay";
@@ -12,6 +12,7 @@ import { useAudio } from "@/hooks/useAudio";
 import { audioManager } from "@/lib/audio-manager";
 import { ensureAuth, getLoginUrl } from "@/lib/auth";
 import { api } from "@/lib/api";
+import { getCricketImageUrl } from "@/lib/image-loader";
 import type { CricketTemplate, Tier } from "@taiwu/shared/types/cricket";
 
 interface RoomPlayer {
@@ -32,6 +33,7 @@ interface RoomState {
 
 export default function RoomPage() {
   const { roomId } = useParams() as { roomId: string };
+  const router = useRouter();
   const searchParams = useSearchParams();
   const fromMatch = searchParams.get("from") === "match";
   const isPractice = searchParams.get("mode") === "practice";
@@ -149,7 +151,10 @@ export default function RoomPage() {
       if (s.phase === "battling") {
         stop();
         const practiceParam = isPractice ? "&mode=practice" : "";
-        window.location.href = "/battle/" + roomId + "?uid=" + myUid + (fromMatch ? "&from=match" : "") + practiceParam;
+        // 用 router.push (软导航) 而非 window.location.href (硬刷新):
+        // 硬刷新会重建 AudioContext 并停留在 suspended 状态,
+        // 而对战页是自动出招, 用户不会点击, BGM 永远等不到 initAutoResume 触发。
+        router.push("/battle/" + roomId + "?uid=" + myUid + (fromMatch ? "&from=match" : "") + practiceParam);
       }
     };
 
@@ -292,7 +297,7 @@ export default function RoomPage() {
                   <div key={slot} className={"w-[56px] h-[56px] rounded-lg flex flex-col items-center justify-center " + (tmpl ? "border border-[var(--color-gold)]/50 bg-[rgba(20,14,10,0.6)]" : "border border-white/5 bg-[rgba(20,14,10,0.3)]")}>
                     {tmpl ? (
                       <>
-                        <Image src={tmpl.imageKey || `/assets/crickets/cricket-${String(((tmpl.id - 1) % 6) + 1).padStart(3, "0")}-thumb.png`} alt={tmpl.name} width={32} height={28} unoptimized className="object-contain" />
+                        <Image src={getCricketImageUrl(tmpl.imageKey, tmpl.id)} alt={tmpl.name} width={32} height={28} unoptimized className="object-contain" />
                         <span className="text-[8px] truncate max-w-[50px]" style={{ color: tierColorMap[tmpl.tier] }}>{tmpl.name}</span>
                       </>
                     ) : (
@@ -321,7 +326,7 @@ export default function RoomPage() {
                     {isSelected && (
                       <div className="absolute top-1 right-1 w-4 h-4 rounded-full bg-[var(--color-gold)] flex items-center justify-center text-[10px] text-[var(--color-bg-base)] font-bold">✓</div>
                     )}
-                    <Image src={tmpl.imageKey || `/assets/crickets/cricket-${String(((tmpl.id - 1) % 6) + 1).padStart(3, "0")}-thumb.png`} alt={tmpl.name} width={40} height={35} unoptimized className="object-contain flex-shrink-0" />
+                    <Image src={getCricketImageUrl(tmpl.imageKey, tmpl.id)} alt={tmpl.name} width={40} height={35} unoptimized className="object-contain flex-shrink-0" />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1">
                         <span className="text-[13px] font-bold truncate font-[family-name:var(--font-noto-serif)]" style={{ color: tierColorMap[tmpl.tier] }}>{tmpl.name}</span>

@@ -1,15 +1,11 @@
 import { Router } from "express";
 import { authMiddleware } from "../middleware/auth";
-import { getSupabase } from "../db/supabase";
+import { db } from "../db/client";
+import { redeemCodes, users, userCrickets } from "../db/schema";
+import { eq, and } from "drizzle-orm";
 import { CRICKET_TEMPLATES } from "@taiwu/shared/data/cricket-templates";
 import { generateVariant } from "@taiwu/shared/lib/cricket-utils";
 import { ROOM_CODE_CHARSET } from "@taiwu/shared/config/game";
-import {
-  memoryCreateRedeemCode,
-  memoryGetRedeemCode,
-  memoryUseRedeemCode,
-  memoryInsert,
-} from "../lib/memory-store";
 import crypto from "crypto";
 
 export const redeemRouter = Router();
@@ -49,46 +45,22 @@ redeemRouter.post("/generate", authMiddleware, async (req, res) => {
     return;
   }
 
-  const sb = getSupabase();
-
-  if (sb) {
-    // Supabase 路径 — 重试处理唯一约束冲突
-    for (let attempt = 0; attempt < 5; attempt++) {
-      const code = generateCode();
-      const { data, error } = await sb
-        .from("redeem_codes")
-        .insert({ code, template_id: templateId })
-        .select("id, code, template_id, is_used, created_at")
-        .single();
-
-      if (!error && data) {
-        res.json({ code: data.code, template });
-        return;
-      }
-
-      // 唯一约束冲突则重试
-      if (error && error.message?.includes("duplicate")) {
-        continue;
-      }
-
-      // 其他 Supabase 错误 — 回退到内存
-      console.warn("[redeem] Supabase generate 失败，回退到内存:", error.message);
-      break;
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const code = generateCode();
+    try {
+      await db.insert(redeemCodes).values({ code, templateId });
+      res.json({ code, template });
+      return;
+    } catch (e: any) {
+      // MySQL 唯一约束冲突 → 重试
+      if (e?.cause?.code === "ER_DUP_ENTRY") continue;
+      console.error("[redeem] generate 失败:", e?.message);
+      res.status(500).json({ error: "生成失败,请稍后重试" });
+      return;
     }
-
-    // Supabase 路径失败 → 回退到内存
-    if (!res.headersSent) {
-      const code = generateCode();
-      const record = memoryCreateRedeemCode(code, templateId);
-      res.json({ code: record.code, template });
-    }
-    return;
   }
 
-  // Memory 路径
-  const code = generateCode();
-  const record = memoryCreateRedeemCode(code, templateId);
-  res.json({ code: record.code, template });
+  res.status(500).json({ error: "生成失败(冲突次数过多),请稍后重试" });
 });
 
 /**
@@ -106,50 +78,34 @@ redeemRouter.post("/preview", authMiddleware, async (req, res) => {
 
   const normalizedCode = code.trim().toUpperCase();
 
-  const sb = getSupabase();
-  if (sb) {
-    const { data, error } = await sb
-      .from("redeem_codes")
-      .select("id, code, template_id, is_used")
-      .eq("code", normalizedCode)
-      .single();
+  try {
+    const rows = await db
+      .select({
+        id: redeemCodes.id,
+        code: redeemCodes.code,
+        templateId: redeemCodes.templateId,
+        isUsed: redeemCodes.isUsed,
+      })
+      .from(redeemCodes)
+      .where(eq(redeemCodes.code, normalizedCode))
+      .limit(1);
 
-    if (error) {
-      // PGRST116 = .single() 未匹配 → 兑换码不存在
-      if (error.code === "PGRST116") {
-        res.status(404).json({ error: "兑换码不存在" });
-        return;
-      }
-      // 其他错误（如表不存在） — 回退到内存
-      console.warn("[redeem] Supabase preview 失败，回退到内存:", error.message);
-    } else if (data) {
-      const template = CRICKET_TEMPLATES.find(t => t.id === data.template_id);
-      if (!template) {
-        res.status(404).json({ error: "蛐蛐模板已失效" });
-        return;
-      }
-      res.json({ template, is_used: data.is_used });
-      return;
-    } else {
+    const data = rows[0];
+    if (!data) {
       res.status(404).json({ error: "兑换码不存在" });
       return;
     }
-  }
 
-  // Memory 路径
-  const record = memoryGetRedeemCode(normalizedCode);
-  if (!record) {
-    res.status(404).json({ error: "兑换码不存在" });
-    return;
+    const template = CRICKET_TEMPLATES.find(t => t.id === data.templateId);
+    if (!template) {
+      res.status(404).json({ error: "蛐蛐模板已失效" });
+      return;
+    }
+    res.json({ template, is_used: data.isUsed });
+  } catch (e: any) {
+    console.error("[redeem] preview 失败:", e?.message);
+    res.status(500).json({ error: "查询失败,请稍后重试" });
   }
-
-  const template = CRICKET_TEMPLATES.find(t => t.id === record.template_id);
-  if (!template) {
-    res.status(404).json({ error: "蛐蛐模板已失效" });
-    return;
-  }
-
-  res.json({ template, is_used: record.is_used });
 });
 
 /**
@@ -157,7 +113,8 @@ redeemRouter.post("/preview", authMiddleware, async (req, res) => {
  * Body: { code: string }
  * 使用兑换码，兑换蛐蛐
  */
-redeemRouter.post("/use", authMiddleware, async (req, res) => {
+redeemRouter.use("/use", authMiddleware);
+redeemRouter.post("/use", async (req, res) => {
   const { code } = req.body as { code: string };
   const uid = req.user!.uid;
 
@@ -168,124 +125,26 @@ redeemRouter.post("/use", authMiddleware, async (req, res) => {
 
   const normalizedCode = code.trim().toUpperCase();
 
-  const sb = getSupabase();
-  if (sb) {
-    // 原子更新 — 仅当未被使用时
-    const { data: updated, error: updateError } = await sb
-      .from("redeem_codes")
-      .update({ is_used: true, used_by: uid, used_at: new Date().toISOString() })
-      .eq("code", normalizedCode)
-      .eq("is_used", false)
-      .select("id, template_id, is_used")
-      .single();
+  // 原子更新: 仅当 is_used=false 时才标记
+  // Drizzle MySQL 不支持 RETURNING,所以用 affectedRows 判断是否命中
+  const updateResult = await db
+    .update(redeemCodes)
+    .set({
+      isUsed: true,
+      usedBy: uid,
+      usedAt: new Date(),
+    })
+    .where(and(eq(redeemCodes.code, normalizedCode), eq(redeemCodes.isUsed, false)));
 
-    if (updateError) {
-      // PGRST116 = .single() 未匹配到行（代码不存在或已使用）
-      if (updateError.code === "PGRST116") {
-        const { data: existing } = await sb
-          .from("redeem_codes")
-          .select("is_used")
-          .eq("code", normalizedCode)
-          .maybeSingle();
-
-        if (!existing) {
-          res.status(404).json({ error: "兑换码不存在" });
-        } else {
-          res.status(400).json({ error: "该兑换码已被使用" });
-        }
-        return;
-      }
-      // 其他错误（如表不存在） — 回退到内存
-      console.warn("[redeem] Supabase use 失败，回退到内存:", updateError.message);
-    } else if (updated) {
-      const template = CRICKET_TEMPLATES.find(t => t.id === updated.template_id);
-      if (!template) {
-        res.status(404).json({ error: "蛐蛐模板已失效" });
-        return;
-      }
-
-      // 创建 UserCricket（与 gacha pull 一致）
-      const variant = generateVariant(template);
-
-      // 确保用户存在
-      const { data: existingUser } = await sb.from("users").select("uid").eq("uid", uid).limit(1);
-      if (!existingUser || existingUser.length === 0) {
-        await sb.from("users").upsert({ uid, nick_name: req.user!.nickName, token: uid }, { onConflict: "uid" });
-      }
-
-      const { data: inserted, error: insertError } = await sb
-        .from("user_crickets")
-        .insert({
-          uid,
-          template_id: template.id,
-          attack: variant.attack,
-          defense: variant.defense,
-          speed: variant.speed,
-          max_hp: variant.maxHp,
-          max_stamina: variant.maxStamina,
-          spirit_base: variant.spiritBase,
-        })
-        .select("id, template_id, attack, defense, speed, max_hp, max_stamina, spirit_base, obtained_at")
-        .single();
-
-      if (insertError || !inserted) {
-        res.status(500).json({ error: "兑换失败，请稍后重试" });
-        return;
-      }
-
-      res.json({
-        result: {
-          id: inserted.id,
-          template_id: inserted.template_id,
-          attack: inserted.attack,
-          defense: inserted.defense,
-          speed: inserted.speed,
-          maxHp: inserted.max_hp,
-          maxStamina: inserted.max_stamina,
-          spiritBase: inserted.spirit_base,
-          obtained_at: inserted.obtained_at,
-          template: {
-            id: template.id,
-            name: template.name,
-            title: template.title,
-            tier: template.tier,
-            attack: template.attack,
-            defense: template.defense,
-            speed: template.speed,
-            hpBase: template.hpBase,
-            staminaBase: template.staminaBase,
-            spiritBase: template.spiritBase,
-            trait: template.trait,
-            gachaWeight: template.gachaWeight,
-            isActive: template.isActive,
-            imageKey: template.imageKey || null,
-          },
-        },
-      });
-      return;
-    } else {
-      // updated 为 null 且无 error → 代码不存在或已被使用
-      const { data: existing } = await sb
-        .from("redeem_codes")
-        .select("is_used")
-        .eq("code", normalizedCode)
-        .single();
-
-      if (!existing) {
-        res.status(404).json({ error: "兑换码不存在" });
-      } else {
-        res.status(400).json({ error: "该兑换码已被使用" });
-      }
-      return;
-    }
-  }
-
-  // Memory 路径
-  const record = memoryUseRedeemCode(normalizedCode, uid);
-  if (!record) {
-    // 检查是否存在但已使用
-    const existing = memoryGetRedeemCode(normalizedCode);
-    if (!existing) {
+  const affected = updateResult[0]?.affectedRows ?? 0;
+  if (affected === 0) {
+    // 没命中 — 区分"不存在" vs "已用过"
+    const checkRows = await db
+      .select({ isUsed: redeemCodes.isUsed })
+      .from(redeemCodes)
+      .where(eq(redeemCodes.code, normalizedCode))
+      .limit(1);
+    if (!checkRows[0]) {
       res.status(404).json({ error: "兑换码不存在" });
     } else {
       res.status(400).json({ error: "该兑换码已被使用" });
@@ -293,21 +152,68 @@ redeemRouter.post("/use", authMiddleware, async (req, res) => {
     return;
   }
 
-  const template = CRICKET_TEMPLATES.find(t => t.id === record.template_id);
+  // 命中 — 拿 template_id
+  const updatedRows = await db
+    .select({ templateId: redeemCodes.templateId })
+    .from(redeemCodes)
+    .where(eq(redeemCodes.code, normalizedCode))
+    .limit(1);
+  const templateId = updatedRows[0]?.templateId;
+  if (!templateId) {
+    res.status(500).json({ error: "兑换失败,请稍后重试" });
+    return;
+  }
+
+  const template = CRICKET_TEMPLATES.find(t => t.id === templateId);
   if (!template) {
     res.status(404).json({ error: "蛐蛐模板已失效" });
     return;
   }
 
-  const inserted = memoryInsert(uid, [{ template_id: template.id, image_key: null }]);
-  const result = inserted[0];
+  // 确保用户存在
+  await db.insert(users)
+    .values({ uid, nickName: req.user!.nickName, token: uid })
+    .onDuplicateKeyUpdate({ set: { nickName: req.user!.nickName } });
+
+  // 创建 user_cricket
+  const variant = generateVariant(template);
+  const [inserted] = await db.insert(userCrickets).values({
+    uid,
+    templateId: template.id,
+    attack: variant.attack,
+    defense: variant.defense,
+    speed: variant.speed,
+    maxHp: variant.maxHp,
+    maxStamina: variant.maxStamina,
+    spiritBase: variant.spiritBase,
+  }).$returningId();
 
   res.json({
     result: {
-      ...result,
+      id: inserted.id,
+      template_id: template.id,
+      attack: variant.attack,
+      defense: variant.defense,
+      speed: variant.speed,
+      maxHp: variant.maxHp,
+      maxStamina: variant.maxStamina,
+      spiritBase: variant.spiritBase,
+      obtained_at: new Date(),
       template: {
-        ...template,
-        imageKey: `/assets/crickets/cricket-${String(((template.id - 1) % 6) + 1).padStart(3, "0")}.png`,
+        id: template.id,
+        name: template.name,
+        title: template.title,
+        tier: template.tier,
+        attack: template.attack,
+        defense: template.defense,
+        speed: template.speed,
+        hpBase: template.hpBase,
+        staminaBase: template.staminaBase,
+        spiritBase: template.spiritBase,
+        trait: template.trait,
+        gachaWeight: template.gachaWeight,
+        isActive: template.isActive,
+        imageKey: template.imageKey || null,
       },
     },
   });

@@ -6,6 +6,7 @@ import Image from "next/image";
 import { TopBar } from "@/components/layout/TopBar";
 import { api } from "@/lib/api";
 import { ensureAuth } from "@/lib/auth";
+import { getCricketImageUrl } from "@/lib/image-loader";
 import { useAudio } from "@/hooks/useAudio";
 import { TIER_COLORS, TIER_LABELS, TRAIT_LABELS } from "@taiwu/shared/config/game";
 import type { CricketTemplate, Tier } from "@taiwu/shared/types/cricket";
@@ -318,7 +319,7 @@ export default function MarketPage() {
                 const tmpl = r.template;
                 if (!tmpl) return null;
                 const tierColor = TIER_COLORS[tmpl.tier as Tier]?.text || "#a0a0a0";
-                const imgSrc = tmpl.imageKey || `/assets/crickets/cricket-${String(((tmpl.id - 1) % 6) + 1).padStart(3, "0")}-thumb.png`;
+                const imgSrc = getCricketImageUrl(tmpl.imageKey, tmpl.id);
                 return (
                   <div key={r.id} className="flex flex-col items-center p-2 rounded-lg border border-[var(--color-gold)]/15 bg-[rgba(20,14,10,0.6)]">
                     <Image src={imgSrc} alt={tmpl.name} width={60} height={50} {...imgProps} className="object-contain" />
@@ -361,7 +362,7 @@ export default function MarketPage() {
           <div className="w-full max-w-[342px] rounded-2xl border border-[var(--color-gold)]/40 bg-[rgba(20,14,10,0.9)] flex flex-col gap-5 py-6 px-5">
             <p className="text-[20px] font-bold text-[var(--color-gold)] font-[family-name:var(--font-ma-shan)] text-center">确认兑换</p>
             <div className="flex flex-col items-center gap-2">
-              <Image src={redeemPreview.imageKey || `/assets/crickets/cricket-${String(((redeemPreview.id - 1) % 6) + 1).padStart(3, "0")}-thumb.png`} alt={redeemPreview.name} width={80} height={60} {...imgProps} className="object-contain" />
+              <Image src={getCricketImageUrl(redeemPreview.imageKey, redeemPreview.id)} alt={redeemPreview.name} width={80} height={60} {...imgProps} className="object-contain" />
               <p className="text-[18px] font-bold font-[family-name:var(--font-noto-serif)]" style={{ color: TIER_COLORS[redeemPreview.tier as Tier]?.text }}>{redeemPreview.name}</p>
               <p className="text-[14px] text-[var(--color-text-secondary)] font-[family-name:var(--font-noto-serif)]">{redeemPreview.title}</p>
               <span className="px-2 py-0.5 rounded text-[12px] font-[family-name:var(--font-noto-serif)]" style={{ color: TIER_COLORS[redeemPreview.tier as Tier]?.text, backgroundColor: (TIER_COLORS[redeemPreview.tier as Tier]?.text || "#a0a0a0") + "18" }}>{TIER_LABELS[redeemPreview.tier]}</span>
@@ -389,7 +390,7 @@ export default function MarketPage() {
                 const tmpl = redeemResult.template;
                 if (!tmpl) return null;
                 const tierColor = TIER_COLORS[tmpl.tier as Tier]?.text || "#a0a0a0";
-                const imgSrc = tmpl.imageKey || `/assets/crickets/cricket-${String(((tmpl.id - 1) % 6) + 1).padStart(3, "0")}-thumb.png`;
+                const imgSrc = getCricketImageUrl(tmpl.imageKey, tmpl.id);
                 return (
                   <div className="flex flex-col items-center p-4 rounded-lg border border-[var(--color-gold)]/20 bg-[rgba(20,14,10,0.6)]">
                     <Image src={imgSrc} alt={tmpl.name} width={100} height={80} {...imgProps} className="object-contain" />

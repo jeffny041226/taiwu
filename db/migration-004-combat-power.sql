@@ -1,7 +1,0 @@
--- 战力排行系统
-ALTER TABLE users ADD COLUMN IF NOT EXISTS combat_power      INTEGER NOT NULL DEFAULT 1000;
-ALTER TABLE users ADD COLUMN IF NOT EXISTS defense_crickets  JSONB   DEFAULT '[]'::jsonb;
-ALTER TABLE users ADD COLUMN IF NOT EXISTS wins              INTEGER NOT NULL DEFAULT 0;
-ALTER TABLE users ADD COLUMN IF NOT EXISTS losses            INTEGER NOT NULL DEFAULT 0;
-
-CREATE INDEX IF NOT EXISTS idx_users_combat_power ON users(combat_power DESC);

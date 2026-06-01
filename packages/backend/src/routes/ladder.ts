@@ -1,178 +1,160 @@
 import { Router } from "express";
 import { authMiddleware } from "../middleware/auth";
-import { getSupabase } from "../db/supabase";
-import {
-  memoryGetCombatPower,
-  memoryGetDefenseCrickets,
-  memorySetDefenseCrickets,
-  memoryGetWinLoss,
-} from "../lib/memory-store";
+import { db } from "../db/client";
+import { users, userCrickets, cricketTemplates } from "../db/schema";
+import { eq, gt, desc, inArray, and, count } from "drizzle-orm";
 
 export const ladderRouter = Router();
 
 /** GET /api/ladder/top100 — 战力前100名 */
 ladderRouter.get("/top100", authMiddleware, async (_req, res) => {
-  const sb = getSupabase();
-  if (sb) {
-    const { data, error } = await sb
-      .from("users")
-      .select("uid, nick_name, avatar, combat_power")
-      .order("combat_power", { ascending: false })
-      .limit(100);
+  const rows = await db
+    .select({
+      uid: users.uid,
+      nickName: users.nickName,
+      avatar: users.avatar,
+      combatPower: users.combatPower,
+    })
+    .from(users)
+    .orderBy(desc(users.combatPower))
+    .limit(100);
 
-    if (error) {
-      res.status(500).json({ error: "获取排行榜失败" });
-      return;
-    }
+  const list = rows.map((u, i) => ({
+    rank: i + 1,
+    uid: u.uid,
+    nickName: u.nickName || "",
+    avatar: u.avatar || null,
+    combatPower: u.combatPower ?? 1000,
+  }));
 
-    const list = (data || []).map((u: any, i: number) => ({
-      rank: i + 1,
-      uid: u.uid,
-      nickName: u.nick_name || "",
-      avatar: u.avatar || null,
-      combatPower: u.combat_power ?? 1000,
-    }));
-
-    res.json({ list });
-    return;
-  }
-
-  // Memory fallback: 无法获取全局排行，返回空列表
-  res.json({ list: [] });
+  res.json({ list });
 });
 
 /** GET /api/ladder/position — 当前用户排名 + 上下各5人 */
 ladderRouter.get("/position", authMiddleware, async (req, res) => {
   const uid = req.user!.uid;
-  const sb = getSupabase();
 
-  if (sb) {
-    // 获取自己的战力和胜负
-    const { data: me } = await sb
-      .from("users")
-      .select("combat_power, nick_name, avatar, wins, losses")
-      .eq("uid", uid)
-      .single();
+  const meRows = await db
+    .select({
+      combatPower: users.combatPower,
+      nickName: users.nickName,
+      avatar: users.avatar,
+      wins: users.wins,
+      losses: users.losses,
+    })
+    .from(users)
+    .where(eq(users.uid, uid))
+    .limit(1);
 
-    const myPower = me?.combat_power ?? 1000;
-    const myNickName = me?.nick_name || req.user!.nickName || "";
-    const myAvatar = me?.avatar || null;
-    const myWins = me?.wins ?? 0;
-    const myLosses = me?.losses ?? 0;
+  const me = meRows[0];
+  const myPower = me?.combatPower ?? 1000;
+  const myNickName = me?.nickName || req.user!.nickName || "";
+  const myAvatar = me?.avatar || null;
+  const myWins = me?.wins ?? 0;
+  const myLosses = me?.losses ?? 0;
 
-    // 计算排名: 比当前用户战力高的人数
-    const { count: higher } = await sb
-      .from("users")
-      .select("*", { count: "exact", head: true })
-      .gt("combat_power", myPower);
+  // 排名: 战力高于我的人数 + 1
+  const higherRows = await db
+    .select({ n: count() })
+    .from(users)
+    .where(gt(users.combatPower, myPower));
+  const myRank = Number(higherRows[0]?.n ?? 0) + 1;
 
-    const myRank = (higher ?? 0) + 1;
+  // 周围排名
+  const offset = Math.max(0, myRank - 6);
+  const surrounding = await db
+    .select({
+      uid: users.uid,
+      nickName: users.nickName,
+      avatar: users.avatar,
+      combatPower: users.combatPower,
+    })
+    .from(users)
+    .orderBy(desc(users.combatPower))
+    .offset(offset)
+    .limit(11);
 
-    // 获取周围排名
-    const offset = Math.max(0, myRank - 6);
-    const { data: surrounding } = await sb
-      .from("users")
-      .select("uid, nick_name, avatar, combat_power")
-      .order("combat_power", { ascending: false })
-      .range(offset, offset + 10);
+  const list = surrounding.map((u, i) => ({
+    rank: offset + i + 1,
+    uid: u.uid,
+    nickName: u.nickName || "",
+    avatar: u.avatar || null,
+    combatPower: u.combatPower ?? 1000,
+    isMe: u.uid === uid,
+  }));
 
-    const list = (surrounding || []).map((u: any, i: number) => ({
-      rank: offset + i + 1,
-      uid: u.uid,
-      nickName: u.nick_name || "",
-      avatar: u.avatar || null,
-      combatPower: u.combat_power ?? 1000,
-      isMe: u.uid === uid,
-    }));
-
-    res.json({
-      myRank,
-      myCombatPower: myPower,
-      myNickName,
-      myAvatar,
-      myWins,
-      myLosses,
-      list,
-    });
-    return;
-  }
-
-  // Memory fallback: 只返回当前用户
-  const myPower = memoryGetCombatPower(uid);
-  const wl = memoryGetWinLoss(uid);
   res.json({
-    myRank: 1,
+    myRank,
     myCombatPower: myPower,
-    myNickName: req.user!.nickName || "",
-    myAvatar: null,
-    myWins: wl.wins,
-    myLosses: wl.losses,
-    list: [{ rank: 1, uid, nickName: req.user!.nickName || "", avatar: null, combatPower: myPower, isMe: true }],
+    myNickName,
+    myAvatar,
+    myWins,
+    myLosses,
+    list,
   });
 });
 
 /** GET /api/ladder/defense — 获取防守阵容 */
 ladderRouter.get("/defense", authMiddleware, async (req, res) => {
   const uid = req.user!.uid;
-  const sb = getSupabase();
 
-  if (sb) {
-    const { data } = await sb
-      .from("users")
-      .select("defense_crickets")
-      .eq("uid", uid)
-      .single();
+  const userRows = await db
+    .select({ defense: users.defenseCrickets })
+    .from(users)
+    .where(eq(users.uid, uid))
+    .limit(1);
+  const cricketIds: number[] = (userRows[0]?.defense ?? []) as number[];
 
-    const cricketIds: number[] = data?.defense_crickets || [];
+  let crickets: any[] = [];
+  if (cricketIds.length > 0) {
+    const cricketData = await db
+      .select({
+        id: userCrickets.id,
+        templateId: userCrickets.templateId,
+        attack: userCrickets.attack,
+        defense: userCrickets.defense,
+        speed: userCrickets.speed,
+        maxHp: userCrickets.maxHp,
+        maxStamina: userCrickets.maxStamina,
+        spiritBase: userCrickets.spiritBase,
+        obtainedAt: userCrickets.obtainedAt,
+      })
+      .from(userCrickets)
+      .where(and(inArray(userCrickets.id, cricketIds), eq(userCrickets.uid, uid)));
 
-    // 解析蛐蛐详情
-    let crickets: any[] = [];
-    if (cricketIds.length > 0) {
-      const { data: cricketData } = await sb
-        .from("user_crickets")
-        .select("id, template_id, attack, defense, speed, max_hp, max_stamina, spirit_base, obtained_at")
-        .in("id", cricketIds)
-        .eq("uid", uid);
+    if (cricketData.length > 0) {
+      const templateIds = cricketData.map(c => c.templateId);
+      const templates = await db
+        .select()
+        .from(cricketTemplates)
+        .where(inArray(cricketTemplates.id, templateIds));
 
-      if (cricketData) {
-        const templateIds = cricketData.map((c: any) => c.template_id);
-        const { data: templates } = await sb
-          .from("cricket_templates")
-          .select("*")
-          .in("id", templateIds);
-
-        crickets = cricketData.map((c: any) => {
-          const tmpl = (templates || []).find((t: any) => t.id === c.template_id);
-          return {
-            id: c.id,
-            template_id: c.template_id,
-            attack: c.attack,
-            defense: c.defense,
-            speed: c.speed,
-            maxHp: c.max_hp,
-            maxStamina: c.max_stamina,
-            spiritBase: c.spirit_base,
-            obtained_at: c.obtained_at,
-            template: tmpl ? {
-              id: tmpl.id, name: tmpl.name, title: tmpl.title,
-              tier: tmpl.tier, attack: tmpl.attack, defense: tmpl.defense,
-              speed: tmpl.speed, hpBase: tmpl.hp_base, staminaBase: tmpl.stamina_base,
-              spiritBase: tmpl.spirit_base, trait: tmpl.trait,
-              gachaWeight: tmpl.gacha_weight, isActive: tmpl.is_active,
-              imageKey: tmpl.image_key,
-            } : null,
-          };
-        });
-      }
+      crickets = cricketData.map(c => {
+        const tmpl = templates.find(t => t.id === c.templateId);
+        return {
+          id: c.id,
+          template_id: c.templateId,
+          attack: c.attack,
+          defense: c.defense,
+          speed: c.speed,
+          maxHp: c.maxHp,
+          maxStamina: c.maxStamina,
+          spiritBase: c.spiritBase,
+          obtained_at: c.obtainedAt,
+          template: tmpl ? {
+            id: tmpl.id, name: tmpl.name, title: tmpl.title,
+            tier: tmpl.tier, attack: tmpl.attack, defense: tmpl.defense,
+            speed: tmpl.speed, hpBase: tmpl.hpBase, staminaBase: tmpl.staminaBase,
+            spiritBase: tmpl.spiritBase, trait: tmpl.trait,
+            gachaWeight: tmpl.gachaWeight, isActive: tmpl.isActive,
+            imageKey: tmpl.imageKey,
+          } : null,
+        };
+      });
     }
-
-    res.json({ cricketIds, crickets });
-    return;
   }
 
-  // Memory fallback
-  const cricketIds = memoryGetDefenseCrickets(uid);
-  res.json({ cricketIds, crickets: [] });
+  res.json({ cricketIds, crickets });
 });
 
 /** PUT /api/ladder/defense — 保存防守阵容 */
@@ -185,29 +167,20 @@ ladderRouter.put("/defense", authMiddleware, async (req, res) => {
     return;
   }
 
-  const sb = getSupabase();
-  if (sb) {
-    // 验证所有权
-    const { data: owned } = await sb
-      .from("user_crickets")
-      .select("id")
-      .in("id", cricketIds)
-      .eq("uid", uid);
+  // 验证所有权
+  const owned = await db
+    .select({ id: userCrickets.id })
+    .from(userCrickets)
+    .where(and(inArray(userCrickets.id, cricketIds), eq(userCrickets.uid, uid)));
 
-    if (!owned || owned.length !== 3) {
-      res.status(400).json({ error: "只能选择自己的蛐蛐" });
-      return;
-    }
-
-    await sb.from("users")
-      .update({ defense_crickets: cricketIds })
-      .eq("uid", uid);
-
-    res.json({ success: true, cricketIds });
+  if (owned.length !== 3) {
+    res.status(400).json({ error: "只能选择自己的蛐蛐" });
     return;
   }
 
-  // Memory fallback
-  memorySetDefenseCrickets(uid, cricketIds);
+  await db.update(users)
+    .set({ defenseCrickets: cricketIds })
+    .where(eq(users.uid, uid));
+
   res.json({ success: true, cricketIds });
 });

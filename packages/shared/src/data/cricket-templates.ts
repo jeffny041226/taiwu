@@ -1,6 +1,6 @@
 import type { CricketTemplate, Tier, Trait } from "../types/cricket";
 
-/** 20 只蛐蛐模板 (matching db/seed.sql) */
+/** 20 只蛐蛐模板 (matching packages/backend/src/db/schema.ts → cricket_templates) */
 export const CRICKET_TEMPLATES: CricketTemplate[] = [
   // 普通 (common) — 8只
   { id: 1,  name: "褐背小将",  title: "褐甲护体",  tier: "common" as Tier, attack: 15, defense: 18, speed: 12, hpBase: 100, staminaBase: 100, spiritBase: 100, trait: "steadfast" as Trait, gachaWeight: 100, isActive: true },

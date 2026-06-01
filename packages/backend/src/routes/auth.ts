@@ -1,8 +1,9 @@
 import { Router } from "express";
-import { getSupabase } from "../db/supabase";
+import { db } from "../db/client";
+import { users, userCrickets } from "../db/schema";
+import { eq } from "drizzle-orm";
 import { CRICKET_TEMPLATES } from "@taiwu/shared/data/cricket-templates";
 import { generateVariant } from "@taiwu/shared/lib/cricket-utils";
-import { memoryInsert } from "../lib/memory-store";
 import { passportService } from "../services/passport";
 import { tokenCache } from "../middleware/auth";
 
@@ -77,55 +78,13 @@ authRouter.post("/login", async (req, res) => {
     }
   }
 
-  // 查找或创建本地用户
-  const sb = getSupabase();
-  let existingUser: any = null;
-  if (sb) {
-    const { data } = await sb.from("users").select("*").eq("uid", uid).single();
-    existingUser = data;
-    if (!data) {
-      // 新用户 → 创建记录 + 赠送起始蛐蛐
-      const { error } = await sb.from("users").insert({
-        uid,
-        nick_name: nickName,
-        username: null,
-        password_hash: null,
-        token: uid,
-        avatar: avatar || "/assets/avatars/avatar-default.png",
-      });
-      if (error) {
-        console.error("[Auth] 创建用户失败:", error.message);
-      }
-
-      // 赠送 3 只起始蛐蛐
-      const starterIds = [1, 2, 3];
-      const inserts = starterIds.map(tid => {
-        const template = CRICKET_TEMPLATES.find(t => t.id === tid);
-        const v = template ? generateVariant(template) : { attack: 10, defense: 10, speed: 10, maxHp: 100, maxStamina: 100, spiritBase: 100 };
-        return { uid, template_id: tid, attack: v.attack, defense: v.defense, speed: v.speed, max_hp: v.maxHp, max_stamina: v.maxStamina, spirit_base: v.spiritBase };
-      });
-      const { error: insertError } = await sb.from("user_crickets").insert(inserts).select();
-      if (insertError) console.error("[Auth] 插入起始蛐蛐失败:", insertError.message);
-    } else {
-      // 更新昵称和头像（以 Passport 为准）
-      const updates: Record<string, string> = {};
-      if (data.nick_name !== nickName) updates.nick_name = nickName;
-      if (avatar && data.avatar !== avatar) updates.avatar = avatar;
-      if (Object.keys(updates).length > 0) {
-        await sb.from("users").update(updates).eq("uid", uid);
-      }
-    }
-  } else {
-    // 无 DB — 写入内存存储
-    const starterIds = [1, 2, 3];
-    const starterRecords = starterIds.map(id => ({ template_id: id, image_key: null }));
-    memoryInsert(uid, starterRecords);
-  }
+  // 查找或创建本地用户 + 赠送起始蛐蛐(新用户)
+  await syncUser(uid, nickName, avatar);
 
   // 缓存 passportToken → uid 到内存
   tokenCache.set(passportToken, { uid, nickName, avatar: avatar || "" });
 
-  res.json({ token: passportToken, uid, nickName: nickName, avatar: avatar || "" });
+  res.json({ token: passportToken, uid, nickName, avatar: avatar || "" });
 });
 
 /** POST /api/auth/verify — 验证 Token 有效性 */
@@ -160,13 +119,15 @@ authRouter.post("/verify", async (req, res) => {
 
   // 如果头像有更新，同步到本地 DB
   if (avatar) {
-    const sb = getSupabase();
-    if (sb) {
-      const { data: dbUser } = await sb.from("users").select("avatar").eq("uid", verified.uid).single();
-      if (dbUser && dbUser.avatar !== avatar) {
-        await sb.from("users").update({ avatar }).eq("uid", verified.uid);
-        console.log("[Auth] 头像已同步更新:", verified.uid);
-      }
+    const rows = await db
+      .select({ avatar: users.avatar })
+      .from(users)
+      .where(eq(users.uid, verified.uid))
+      .limit(1);
+    const dbAvatar = rows[0]?.avatar;
+    if (dbAvatar !== avatar) {
+      await db.update(users).set({ avatar }).where(eq(users.uid, verified.uid));
+      console.log("[Auth] 头像已同步更新:", verified.uid);
     }
   }
 
@@ -198,49 +159,66 @@ authRouter.post("/callback", async (req, res) => {
     console.warn("[Auth] getTokenInfo 失败，使用默认昵称:", e.message);
   }
 
-  // 同步本地用户
-  const sb = getSupabase();
-  if (sb) {
-    const { data: existingUser } = await sb.from("users").select("uid, nick_name, avatar").eq("uid", uid).single();
-
-    if (!existingUser) {
-      // 新用户 → 创建 + 赠送起始蛐蛐
-      const { error } = await sb.from("users").insert({
-        uid,
-        nick_name: nickName,
-        username: null,
-        password_hash: null,
-        token: uid,
-        avatar: avatar || "/assets/avatars/avatar-default.png",
-      });
-      if (error) console.error("[Auth] 创建用户失败:", error.message);
-
-      const starterIds = [1, 2, 3];
-      const inserts = starterIds.map(tid => {
-        const template = CRICKET_TEMPLATES.find(t => t.id === tid);
-        const v = template ? generateVariant(template) : { attack: 10, defense: 10, speed: 10, maxHp: 100, maxStamina: 100, spiritBase: 100 };
-        return { uid, template_id: tid, attack: v.attack, defense: v.defense, speed: v.speed, max_hp: v.maxHp, max_stamina: v.maxStamina, spirit_base: v.spiritBase };
-      });
-      const { error: insertError } = await sb.from("user_crickets").insert(inserts).select();
-      if (insertError) console.error("[Auth] 插入起始蛐蛐失败:", insertError.message);
-    } else {
-      // 已有用户 → 更新昵称和头像
-      const updates: Record<string, string> = {};
-      if (existingUser.nick_name !== nickName) updates.nick_name = nickName;
-      if (avatar && existingUser.avatar !== avatar) updates.avatar = avatar;
-      if (Object.keys(updates).length > 0) {
-        await sb.from("users").update(updates).eq("uid", uid);
-      }
-    }
-  } else {
-    // 无 DB — 写入内存
-    const starterIds = [1, 2, 3];
-    const starterRecords = starterIds.map(id => ({ template_id: id, image_key: null }));
-    memoryInsert(uid, starterRecords);
-  }
+  // 同步本地用户 + 新用户赠送起始蛐蛐
+  await syncUser(uid, nickName, avatar);
 
   // 缓存 token
   tokenCache.set(token, { uid, nickName, avatar });
 
   res.json({ uid, nickName, avatar });
 });
+
+// ── 辅助:创建/更新用户 + 新用户赠送起始蛐蛐 ──
+
+const DEFAULT_AVATAR = "/assets/avatars/avatar-default.png";
+const STARTER_TEMPLATE_IDS = [1, 2, 3] as const;
+
+async function syncUser(uid: string, nickName: string, avatar?: string): Promise<void> {
+  const existingRows = await db.select().from(users).where(eq(users.uid, uid)).limit(1);
+  const existing = existingRows[0];
+
+  if (!existing) {
+    // 新用户 → INSERT users + 赠送 3 只起始蛐蛐
+    try {
+      await db.insert(users).values({
+        uid,
+        nickName: nickName || "",
+        username: null,
+        passwordHash: null,
+        token: uid,
+        avatar: avatar || DEFAULT_AVATAR,
+      });
+    } catch (e: any) {
+      console.error("[Auth] 创建用户失败:", e.message);
+    }
+
+    const inserts = STARTER_TEMPLATE_IDS.map(tid => {
+      const template = CRICKET_TEMPLATES.find(t => t.id === tid);
+      const v = template ? generateVariant(template) : { attack: 10, defense: 10, speed: 10, maxHp: 100, maxStamina: 100, spiritBase: 100 };
+      return {
+        uid,
+        templateId: tid,
+        attack: v.attack,
+        defense: v.defense,
+        speed: v.speed,
+        maxHp: v.maxHp,
+        maxStamina: v.maxStamina,
+        spiritBase: v.spiritBase,
+      };
+    });
+    try {
+      await db.insert(userCrickets).values(inserts);
+    } catch (e: any) {
+      console.error("[Auth] 插入起始蛐蛐失败:", e.message);
+    }
+    return;
+  }
+
+  // 已有用户 → 更新昵称和头像(以 Passport 为准)
+  const updates: Partial<{ nickName: string; avatar: string }> = {};
+  if (nickName && existing.nickName !== nickName) updates.nickName = nickName;
+  if (avatar && existing.avatar !== avatar) updates.avatar = avatar;
+  if (Object.keys(updates).length > 0) {
+    await db.update(users).set(updates).where(eq(users.uid, uid));
+  }
+}
