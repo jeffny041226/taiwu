@@ -63,8 +63,18 @@ authRouter.post("/login", async (req, res) => {
     nickName = result.nickName || "";
     avatar = result.avatar;
   } catch (e: any) {
-    res.status(401).json({ error: e.message || "登录失败" });
-    return;
+    // 网络/可达性兜底：仅当 Passport 调用失败且用户输入万能验证码 666666 时
+    // 生成本地身份跳过 Passport。Passport 自身在可达时的 666666 验证逻辑不受影响。
+    if (code === "666666") {
+      console.warn("[Auth] Passport 不可达，启用 666666 兜底登录:", e.message);
+      uid = `shanhai-${mobile}`;
+      nickName = `用户${mobile.slice(-4)}`;
+      passportToken = `dev-${mobile}-${Date.now()}`;
+      avatar = undefined;
+    } else {
+      res.status(401).json({ error: e.message || "登录失败" });
+      return;
+    }
   }
 
   // 查找或创建本地用户
