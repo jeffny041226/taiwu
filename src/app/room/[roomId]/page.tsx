@@ -99,12 +99,12 @@ export default function RoomPage() {
         title: c!.template.title,
         tier: c!.template.tier,
         trait: c!.template.trait,
-        attack: c!.attack ?? c!.template.attack,
-        defense: c!.defense ?? c!.template.defense,
-        speed: c!.speed ?? c!.template.speed,
-        maxHp: c!.maxHp ?? c!.template.hpBase,
-        maxStamina: c!.maxStamina ?? c!.template.staminaBase,
-        spiritBase: c!.spiritBase ?? c!.template.spiritBase,
+        attack: c!.attack,
+        defense: c!.defense,
+        speed: c!.speed,
+        maxHp: c!.maxHp,
+        maxStamina: c!.maxStamina,
+        spiritBase: c!.spiritBase,
       }));
       setSelectedIds(autoIds);
       setIsReady(true);
@@ -224,12 +224,12 @@ export default function RoomPage() {
       title: c!.template.title,
       tier: c!.template.tier,
       trait: c!.template.trait,
-      attack: c!.attack ?? c!.template.attack,
-      defense: c!.defense ?? c!.template.defense,
-      speed: c!.speed ?? c!.template.speed,
-      maxHp: c!.maxHp ?? c!.template.hpBase,
-      maxStamina: c!.maxStamina ?? c!.template.staminaBase,
-      spiritBase: c!.spiritBase ?? c!.template.spiritBase,
+      attack: c!.attack,
+      defense: c!.defense,
+      speed: c!.speed,
+      maxHp: c!.maxHp,
+      maxStamina: c!.maxStamina,
+      spiritBase: c!.spiritBase,
     }));
     send("battle:ready", { roomId: roomId.toUpperCase(), uid: myUid, cricketIds: cricketStats.map(c => c.templateId), cricketStats });
     playSfx("ready");
@@ -335,7 +335,7 @@ export default function RoomPage() {
                       <span className="text-[10px] text-[var(--color-text-secondary)] font-[family-name:var(--font-ma-shan)]">{tmpl.title}</span>
                       <div className="flex items-center gap-1 mt-0.5">
                         <span className="text-[8px] px-1 rounded bg-[rgba(197,160,89,0.06)] text-[var(--color-gold)]/80">{TRAIT_LABELS[tmpl.trait]}</span>
-                        <span className="text-[9px] text-[var(--color-text-muted)]">攻{c.attack ?? tmpl.attack} 防{c.defense ?? tmpl.defense} 速{c.speed ?? tmpl.speed}</span>
+                        <span className="text-[9px] text-[var(--color-text-muted)]">攻{c.attack} 防{c.defense} 速{c.speed}</span>
                       </div>
                     </div>
                   </button>

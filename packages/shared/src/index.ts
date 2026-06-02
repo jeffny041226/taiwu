@@ -30,7 +30,7 @@ export type { ActionResult, BattleCalcInput } from "./lib/battle-calc";
 export { pullOne, pullMultiple, simulateDistribution } from "./lib/gacha-engine";
 export type { GachaItem } from "./lib/gacha-engine";
 export { generateRoomCode, validateRoomCode } from "./lib/room-code";
-export { getTierLabel, getTierColor, getTraitLabel, getTraitDescription, getEffectiveAttack, getEffectiveSpeed, formatStats, generateVariant } from "./lib/cricket-utils";
+export { getTierLabel, getTierColor, getTraitLabel, getTraitDescription, formatRange, formatTierRangeStats } from "./lib/cricket-utils";
 
 // Data
 export { CRICKET_TEMPLATES, getCricketThumb } from "./data/cricket-templates";

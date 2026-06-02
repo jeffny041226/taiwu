@@ -4,7 +4,7 @@ import { db } from "../db/client";
 import { redeemCodes, users, userCrickets } from "../db/schema";
 import { eq, and } from "drizzle-orm";
 import { CRICKET_TEMPLATES } from "@taiwu/shared/data/cricket-templates";
-import { generateVariant } from "@taiwu/shared/lib/cricket-utils";
+import { generateVariantByTier } from "../lib/tier-ranges";
 import { ROOM_CODE_CHARSET } from "@taiwu/shared/config/game";
 import crypto from "crypto";
 
@@ -125,7 +125,7 @@ redeemRouter.post("/use", async (req, res) => {
 
   const normalizedCode = code.trim().toUpperCase();
 
-  // 原子更新: 仅当 is_used=false 时才标记
+  // 原子更新: 仅当 is_used=false AND status='active' AND (expiry_at IS NULL OR expiry_at > NOW()) 时才标记
   // Drizzle MySQL 不支持 RETURNING,所以用 affectedRows 判断是否命中
   const updateResult = await db
     .update(redeemCodes)
@@ -134,18 +134,30 @@ redeemRouter.post("/use", async (req, res) => {
       usedBy: uid,
       usedAt: new Date(),
     })
-    .where(and(eq(redeemCodes.code, normalizedCode), eq(redeemCodes.isUsed, false)));
+    .where(and(
+      eq(redeemCodes.code, normalizedCode),
+      eq(redeemCodes.isUsed, false),
+      eq(redeemCodes.status, "active"),
+    ));
 
   const affected = updateResult[0]?.affectedRows ?? 0;
   if (affected === 0) {
-    // 没命中 — 区分"不存在" vs "已用过"
+    // 没命中 — 区分"不存在" / "已用过" / "已禁用" / "已过期"
     const checkRows = await db
-      .select({ isUsed: redeemCodes.isUsed })
+      .select({
+        isUsed: redeemCodes.isUsed,
+        status: redeemCodes.status,
+        expiryAt: redeemCodes.expiryAt,
+      })
       .from(redeemCodes)
       .where(eq(redeemCodes.code, normalizedCode))
       .limit(1);
     if (!checkRows[0]) {
       res.status(404).json({ error: "兑换码不存在" });
+    } else if (checkRows[0].status === "disabled") {
+      res.status(400).json({ error: "该兑换码已被禁用" });
+    } else if (checkRows[0].expiryAt && checkRows[0].expiryAt < new Date()) {
+      res.status(400).json({ error: "该兑换码已过期" });
     } else {
       res.status(400).json({ error: "该兑换码已被使用" });
     }
@@ -176,7 +188,7 @@ redeemRouter.post("/use", async (req, res) => {
     .onDuplicateKeyUpdate({ set: { nickName: req.user!.nickName } });
 
   // 创建 user_cricket
-  const variant = generateVariant(template);
+  const variant = generateVariantByTier(template.tier);
   const [inserted] = await db.insert(userCrickets).values({
     uid,
     templateId: template.id,
@@ -204,12 +216,6 @@ redeemRouter.post("/use", async (req, res) => {
         name: template.name,
         title: template.title,
         tier: template.tier,
-        attack: template.attack,
-        defense: template.defense,
-        speed: template.speed,
-        hpBase: template.hpBase,
-        staminaBase: template.staminaBase,
-        spiritBase: template.spiritBase,
         trait: template.trait,
         gachaWeight: template.gachaWeight,
         isActive: template.isActive,

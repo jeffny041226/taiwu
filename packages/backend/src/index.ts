@@ -17,6 +17,7 @@ import { ladderRouter } from "./routes/ladder";
 import { handleMessage, handleClose } from "./ws/handler";
 import { getAllRooms, finishRoom, scheduleCleanup } from "./ws/room-manager";
 import { passportService } from "./services/passport";
+import { loadTierRanges } from "./lib/tier-ranges";
 
 const app = express();
 
@@ -129,11 +130,22 @@ setInterval(() => {
   }
 }, 60000);
 
-server.listen(BACKEND_PORT, "0.0.0.0", () => {
-  console.log(`[Backend] 斗蛐蛐服务器启动 -> http://localhost:${BACKEND_PORT}`);
-  console.log(`[Backend] REST API: /api/*`);
-  console.log(`[Backend] WebSocket: ws://localhost:${BACKEND_PORT}/ws/battle`);
-});
+// 启动: 加载级别区间缓存 → 监听端口
+async function bootstrap() {
+  try {
+    await loadTierRanges();
+  } catch (e: any) {
+    console.error("[Backend] 加载 cricket_tier_ranges 失败,终止启动:", e.message);
+    process.exit(1);
+  }
+
+  server.listen(BACKEND_PORT, "0.0.0.0", () => {
+    console.log(`[Backend] 斗蛐蛐服务器启动 -> http://localhost:${BACKEND_PORT}`);
+    console.log(`[Backend] REST API: /api/*`);
+    console.log(`[Backend] WebSocket: ws://localhost:${BACKEND_PORT}/ws/battle`);
+  });
+}
+bootstrap();
 
 // Graceful shutdown
 process.on("SIGTERM", () => {

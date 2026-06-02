@@ -69,6 +69,19 @@ export const api = {
   /** 获取蛐蛐模板列表 */
   getTemplates: () => request<{ templates: CricketTemplate[] }>("/crickets/templates"),
 
+  /** 获取 4 个级别的属性区间 (给图鉴/展示用) */
+  getTierRanges: () =>
+    request<{
+      ranges: Record<string, {
+        attack: [number, number];
+        defense: [number, number];
+        speed: [number, number];
+        maxHp: [number, number];
+        maxStamina: [number, number];
+        spiritBase: [number, number];
+      }>;
+    }>("/crickets/tier-ranges"),
+
   /** 放生蛐蛐 */
   releaseCricket: (cricketId: number) =>
     request<{ success: boolean }>("/crickets/release", {

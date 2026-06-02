@@ -8,7 +8,8 @@ import { api } from "@/lib/api";
 import { ensureAuth } from "@/lib/auth";
 import { getCricketImageUrl } from "@/lib/image-loader";
 import { TIER_COLORS, TIER_LABELS } from "@taiwu/shared/config/game";
-import type { CricketTemplate } from "@taiwu/shared/types/cricket";
+import type { CricketTemplate, Tier } from "@taiwu/shared/types/cricket";
+import { formatTierRangeStats } from "@taiwu/shared/lib/cricket-utils";
 
 const imgProps = { unoptimized: true };
 
@@ -24,12 +25,23 @@ interface HandbookEntry {
   owned: boolean;
 }
 
+/** 6 个属性的 [min, max] 区间结构 (来自 /api/crickets/tier-ranges) */
+type TierRangeMap = Record<Tier, {
+  attack: [number, number];
+  defense: [number, number];
+  speed: [number, number];
+  maxHp: [number, number];
+  maxStamina: [number, number];
+  spiritBase: [number, number];
+}>;
+
 function templateImage(tmpl: CricketTemplate): string {
   return getCricketImageUrl(tmpl.imageKey, tmpl.id);
 }
 
 export default function HandbookPage() {
   const [entries, setEntries] = useState<HandbookEntry[]>([]);
+  const [tierRanges, setTierRanges] = useState<TierRangeMap | null>(null);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState("");
 
@@ -37,9 +49,10 @@ export default function HandbookPage() {
     ensureAuth().then(async (auth) => {
       if (!auth) return;
       try {
-        const [templatesData, cricketsData] = await Promise.all([
+        const [templatesData, cricketsData, rangesData] = await Promise.all([
           api.getTemplates(),
           api.getCrickets(),
+          api.getTierRanges(),
         ]);
         const ownedIds = new Set(
           cricketsData.crickets.map((c: any) => c.template_id ?? c.template?.id)
@@ -54,6 +67,7 @@ export default function HandbookPage() {
           return a.template.id - b.template.id;
         });
         setEntries(merged);
+        setTierRanges(rangesData.ranges as TierRangeMap);
       } catch (e: any) {
         setErrorMsg(e.message || "加载失败");
       } finally {
@@ -86,6 +100,8 @@ export default function HandbookPage() {
             <div className="grid grid-cols-2 gap-3">
               {entries.map(({ template: tmpl, owned }) => {
                 const tierColor = TIER_COLORS[tmpl.tier]?.text ?? "#a0a0a0";
+                const range = tierRanges?.[tmpl.tier as Tier];
+                const stats = range ? formatTierRangeStats(range) : null;
                 return (
                   <div key={tmpl.id}
                     className={`w-[173px] h-[215px] rounded-xl border border-[var(--color-gold)]/15 flex flex-col items-center relative ${owned ? "bg-[var(--color-bg-base)]/40" : "bg-[var(--color-bg-base)]/30"}`}>
@@ -94,18 +110,27 @@ export default function HandbookPage() {
                       style={{ color: tierColor, backgroundColor: `${tierColor}30` }}>{TIER_LABELS[tmpl.tier]}</div>
 
                     {/* 蛐蛐图片 */}
-                    <div className={`w-[120px] h-[80px] mt-5 mb-1 flex items-center justify-center ${!owned ? "grayscale opacity-60" : ""}`}>
-                      <Image src={templateImage(tmpl)} alt={tmpl.name} width={120} height={80} {...imgProps} className="object-contain" />
+                    <div className={`w-[120px] h-[60px] mt-4 mb-1 flex items-center justify-center ${!owned ? "grayscale opacity-60" : ""}`}>
+                      <Image src={templateImage(tmpl)} alt={tmpl.name} width={120} height={60} {...imgProps} className="object-contain" />
                     </div>
 
                     {/* 名称 + 称号 */}
                     <div className={!owned ? "grayscale opacity-60" : ""}>
                       <p className="text-[15px] font-bold text-[var(--color-text-primary)] font-[family-name:var(--font-noto-serif)]">{tmpl.name}</p>
-                      <p className="text-[12px] text-[var(--color-text-secondary)] font-[family-name:var(--font-noto-serif)] mb-1">{tmpl.title}</p>
+                      <p className="text-[12px] text-[var(--color-text-secondary)] font-[family-name:var(--font-noto-serif)]">{tmpl.title}</p>
                     </div>
 
+                    {/* 级别区间 (抽/兑在此范围内随机) */}
+                    {stats && (
+                      <p className="text-[8px] text-[var(--color-text-muted)] font-[family-name:var(--font-noto-serif)] text-center px-2 leading-tight mt-1">
+                        攻{stats.attack} 防{stats.defense} 速{stats.speed}
+                        <br />
+                        血{stats.maxHp} 耐{stats.maxStamina} 势{stats.spiritBase}
+                      </p>
+                    )}
+
                     {/* 已拥有 / 去拥有 */}
-                    <div className="flex-1 flex items-end pb-3">
+                    <div className="flex-1 flex items-end pb-2">
                       {owned ? (
                         <span className="text-[12px] text-[var(--color-gold)] font-[family-name:var(--font-noto-serif)]">已拥有</span>
                       ) : (

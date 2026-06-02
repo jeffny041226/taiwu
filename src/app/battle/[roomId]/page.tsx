@@ -203,11 +203,18 @@ export default function BattlePage({ params }: { params: Promise<{ roomId: strin
   const [pvpGameOver, setPvpGameOver] = useState<{ winner: string; myScore: number; enemyScore: number } | null>(null);
   const [powerChange, setPowerChange] = useState<{ power: number; delta: number; won: boolean } | null>(null);
   const [rematchLoading, setRematchLoading] = useState(false);
+  const [rematchToast, setRematchToast] = useState<string | null>(null);
+  const rematchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [showDamage, setShowDamage] = useState<{ dmg: number; target: "me" | "enemy" } | null>(null);
 
   // Audio
   const { playBgm, stopBgm, playSfx } = useAudio();
   useEffect(() => { playBgm("battle"); return () => { stopBgm(); }; }, [playBgm, stopBgm]);
+
+  // 组件卸载时清理重开 timer
+  useEffect(() => () => {
+    if (rematchTimeoutRef.current) clearTimeout(rematchTimeoutRef.current);
+  }, []);
 
   const [lastMyAction, setLastMyAction] = useState<Action | null>(null);
   const [lastEnemyAction, setLastEnemyAction] = useState<Action | null>(null);
@@ -260,6 +267,11 @@ export default function BattlePage({ params }: { params: Promise<{ roomId: strin
     const handleBattleData = (payload: unknown) => {
       console.log("[Battle] 收到 battle:data!");
       setRematchLoading(false);
+      setRematchToast(null);
+      if (rematchTimeoutRef.current) {
+        clearTimeout(rematchTimeoutRef.current);
+        rematchTimeoutRef.current = null;
+      }
       setPvpGameOver(null);
       const d = payload as { myCrickets: Cricket[], enemyCrickets: Cricket[], myIdx: number, enemyIdx: number, myScore: number, enemyScore: number, battleMode?: string };
       setMyTeam(d.myCrickets);
@@ -460,6 +472,8 @@ export default function BattlePage({ params }: { params: Promise<{ roomId: strin
       const p = payload as { message?: string };
       console.log("[Battle] 收到 room:error: " + p.message);
       addLog("错误: " + String(p.message));
+      // 任何服务端错误都解除重开锁定,避免按钮卡在"重开中..."
+      setRematchLoading(false);
     };
 
     // Send room:join on connect
@@ -528,8 +542,21 @@ export default function BattlePage({ params }: { params: Promise<{ roomId: strin
 
   // ── PVE: 再来一局 ──
   const handleRematch = () => {
+    // 清理上一个超时 timer
+    if (rematchTimeoutRef.current) {
+      clearTimeout(rematchTimeoutRef.current);
+      rematchTimeoutRef.current = null;
+    }
     setRematchLoading(true);
+    setRematchToast(null);
     send("battle:rematch", { roomId: roomId.toUpperCase() });
+    // 8s 内没收到 battle:data 视为房间已过期,强制解锁并提示
+    rematchTimeoutRef.current = setTimeout(() => {
+      setRematchLoading(false);
+      setRematchToast("房间已过期,请返回大厅");
+      rematchTimeoutRef.current = null;
+      setTimeout(() => setRematchToast(null), 4000);
+    }, 8000);
   };
 
   // ── 训练模式状态 ──
@@ -565,18 +592,18 @@ export default function BattlePage({ params }: { params: Promise<{ roomId: strin
           const team = crickets.slice(0, 3).map(uc => {
             const t = uc.template as CricketTemplate;
             return {
-              id: t.id,
+              id: uc.id,
               name: t.name,
               title: t.title,
               tier: t.tier,
-              maxHp: t.hpBase,
-              hp: t.hpBase,
-              maxStamina: t.staminaBase,
-              stamina: t.staminaBase,
-              spirit: t.spiritBase,
-              attack: t.attack,
-              defense: t.defense,
-              speed: t.speed,
+              maxHp: uc.maxHp,
+              hp: uc.maxHp,
+              maxStamina: uc.maxStamina,
+              stamina: uc.maxStamina,
+              spirit: uc.spiritBase,
+              attack: uc.attack,
+              defense: uc.defense,
+              speed: uc.speed,
               trait: t.trait,
             } as Cricket;
           });
@@ -801,6 +828,11 @@ export default function BattlePage({ params }: { params: Promise<{ roomId: strin
     <div className="relative w-full h-[100dvh] overflow-hidden">
       <Image src="/assets/backgrounds/bg-battle.webp?v=2" alt="" fill unoptimized className="object-cover" priority />
       <div className="absolute inset-0 bg-[var(--color-bg-base)]/60" />
+      {rematchToast && (
+        <div className="absolute top-[80px] left-1/2 -translate-x-1/2 z-[60] px-4 py-2 rounded-[10px] bg-[rgba(20,14,10,0.92)] border border-[var(--color-gold)]/40 text-[14px] text-[var(--color-gold)] font-[family-name:var(--font-noto-serif)] shadow-lg">
+          {rematchToast}
+        </div>
+      )}
       <TopBar
         title={isPractice && !isChallenge ? `训练(${BATTLE_MODE_LABELS[BATTLE_MODE]})` : isChallenge ? `挑战·${challengeTargetName}` : `对战·${BATTLE_MODE_LABELS[BATTLE_MODE]}`}
         rightWide

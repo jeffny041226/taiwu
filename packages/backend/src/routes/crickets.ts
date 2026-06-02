@@ -2,14 +2,18 @@ import { Router } from "express";
 import { authMiddleware } from "../middleware/auth";
 import { db } from "../db/client";
 import { userCrickets, cricketTemplates } from "../db/schema";
-import { eq, and, inArray } from "drizzle-orm";
-import { CRICKET_TEMPLATES } from "@taiwu/shared/data/cricket-templates";
+import { eq, and } from "drizzle-orm";
 import type { Tier } from "@taiwu/shared/types/cricket";
+import { getAllTierRanges } from "../lib/tier-ranges";
 
 const TIER_ORDER: Record<Tier, number> = { common: 0, rare: 1, epic: 2, legendary: 3 };
 
 export const cricketsRouter = Router();
 
+/**
+ * GET /api/crickets — 当前用户的所有蛐蛐
+ * 按级别降序 + 获得时间降序
+ */
 cricketsRouter.get("/", authMiddleware, async (req, res) => {
   const uid = req.user!.uid;
 
@@ -30,12 +34,6 @@ cricketsRouter.get("/", authMiddleware, async (req, res) => {
       templateName: cricketTemplates.name,
       templateTitle: cricketTemplates.title,
       templateTier: cricketTemplates.tier,
-      templateAttack: cricketTemplates.attack,
-      templateDefense: cricketTemplates.defense,
-      templateSpeed: cricketTemplates.speed,
-      templateHpBase: cricketTemplates.hpBase,
-      templateStaminaBase: cricketTemplates.staminaBase,
-      templateSpiritBase: cricketTemplates.spiritBase,
       templateTrait: cricketTemplates.trait,
       templateGachaWeight: cricketTemplates.gachaWeight,
       templateIsActive: cricketTemplates.isActive,
@@ -69,12 +67,6 @@ cricketsRouter.get("/", authMiddleware, async (req, res) => {
         name: uc.templateName,
         title: uc.templateTitle,
         tier: uc.templateTier,
-        attack: uc.templateAttack,
-        defense: uc.templateDefense,
-        speed: uc.templateSpeed,
-        hpBase: uc.templateHpBase,
-        staminaBase: uc.templateStaminaBase,
-        spiritBase: uc.templateSpiritBase,
         trait: uc.templateTrait,
         gachaWeight: uc.templateGachaWeight,
         isActive: uc.templateIsActive,
@@ -85,24 +77,20 @@ cricketsRouter.get("/", authMiddleware, async (req, res) => {
   res.json({ crickets });
 });
 
+/**
+ * GET /api/crickets/templates — 所有激活的蛐蛐模板 (元数据,不含个体属性)
+ */
 cricketsRouter.get("/templates", async (_req, res) => {
   const rows = await db
     .select()
     .from(cricketTemplates)
     .where(eq(cricketTemplates.isActive, true));
 
-  // Map camelCase → camelCase(已是 camelCase,只需保留 imageKey)
   const templates = rows.map(t => ({
     id: t.id,
     name: t.name,
     title: t.title,
     tier: t.tier,
-    attack: t.attack,
-    defense: t.defense,
-    speed: t.speed,
-    hpBase: t.hpBase,
-    staminaBase: t.staminaBase,
-    spiritBase: t.spiritBase,
     trait: t.trait,
     color: t.color,
     emoji: t.emoji,
@@ -113,6 +101,15 @@ cricketsRouter.get("/templates", async (_req, res) => {
   res.json({ templates });
 });
 
+/**
+ * GET /api/crickets/tier-ranges — 4 个级别的 6 个属性区间
+ * 给前端 handbook / 展示用。返回结构: { common: { attack: [8,13], ... }, ... }
+ */
+cricketsRouter.get("/tier-ranges", async (_req, res) => {
+  res.json({ ranges: getAllTierRanges() });
+});
+
+/** POST /api/crickets/release — 放生一只蛐蛐 */
 cricketsRouter.post("/release", authMiddleware, async (req, res) => {
   const { cricketId } = req.body as { cricketId: number };
   const uid = req.user!.uid;

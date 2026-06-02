@@ -5,7 +5,7 @@ import { users, userCrickets, cricketTemplates } from "../db/schema";
 import { eq, inArray, sql } from "drizzle-orm";
 import { CRICKET_TEMPLATES } from "@taiwu/shared/data/cricket-templates";
 import { pullMultiple } from "@taiwu/shared/lib/gacha-engine";
-import { generateVariant } from "@taiwu/shared/lib/cricket-utils";
+import { generateVariantByTier } from "../lib/tier-ranges";
 
 export const gachaRouter = Router();
 
@@ -30,7 +30,7 @@ gachaRouter.post("/pull", authMiddleware, async (req, res) => {
 
   // 插入抽到的 user_crickets
   const inserts = pulled.map(t => {
-    const v = generateVariant(t);
+    const v = generateVariantByTier(t.tier);
     return {
       uid,
       templateId: t.id,
@@ -69,12 +69,6 @@ gachaRouter.post("/pull", authMiddleware, async (req, res) => {
         name: dbTmpl.name,
         title: dbTmpl.title,
         tier: dbTmpl.tier,
-        attack: dbTmpl.attack,
-        defense: dbTmpl.defense,
-        speed: dbTmpl.speed,
-        hpBase: dbTmpl.hpBase,
-        staminaBase: dbTmpl.staminaBase,
-        spiritBase: dbTmpl.spiritBase,
         trait: dbTmpl.trait,
         gachaWeight: dbTmpl.gachaWeight,
         isActive: dbTmpl.isActive,

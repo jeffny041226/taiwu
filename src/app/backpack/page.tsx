@@ -17,10 +17,19 @@ interface UserCricket {
   template_id: number;
   template?: CricketTemplate;
   obtained_at: string;
+  attack: number;
+  defense: number;
+  speed: number;
+  maxHp: number;
+  maxStamina: number;
+  spiritBase: number;
 }
 
+/** 上限按 legendary 区间 max (34) — 之后若改 tier 区间需同步 */
+const STAT_BAR_MAX = 34;
+
 function StatBar({ label, value, color }: { label: string; value: number; color: string }) {
-  const pct = Math.min((value / 25) * 100, 100);
+  const pct = Math.min((value / STAT_BAR_MAX) * 100, 100);
   return (
     <div className="flex items-center gap-2 mb-1">
       <span className="text-[12px] text-[var(--color-text-secondary)] w-4 font-[family-name:var(--font-noto-serif)]">{label}</span>
@@ -110,11 +119,11 @@ export default function BackpackPage() {
                   <p className="text-[15px] font-bold text-[var(--color-text-primary)] font-[family-name:var(--font-noto-serif)]">{tmpl.name}</p>
                   <p className="text-[12px] text-[var(--color-text-secondary)] font-[family-name:var(--font-noto-serif)] mb-1">{tmpl.title}</p>
 
-                  {/* 属性条 */}
+                  {/* 属性条 — 用 user_cricket 的个体属性 (抽/兑时按 tier 区间随机) */}
                   <div className="w-[145px]">
-                    <StatBar label="攻" value={tmpl.attack} color="var(--color-stat-atk)" />
-                    <StatBar label="防" value={tmpl.defense} color="var(--color-stat-def)" />
-                    <StatBar label="速" value={tmpl.speed} color="var(--color-stat-spd)" />
+                    <StatBar label="攻" value={uc.attack} color="var(--color-stat-atk)" />
+                    <StatBar label="防" value={uc.defense} color="var(--color-stat-def)" />
+                    <StatBar label="速" value={uc.speed} color="var(--color-stat-spd)" />
                   </div>
 
                   {/* 特性 + 放生 */}

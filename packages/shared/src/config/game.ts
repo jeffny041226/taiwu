@@ -48,8 +48,8 @@ export const WS_HEARTBEAT_INTERVAL = 20000;
 /** WebSocket ping 超时 (ms) */
 export const WS_PING_TIMEOUT = 10000;
 
-/** 断线房间清理延迟 (ms) */
-export const ROOM_CLEANUP_DELAY = 5000;
+/** 断线/结算后房间清理延迟 (ms) — 给玩家充足时间点重开 */
+export const ROOM_CLEANUP_DELAY = 30000;
 
 /** 动作选择超时 (ms，超时随机出招) */
 export const ACTION_TIMEOUT = 30000;

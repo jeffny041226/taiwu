@@ -3,7 +3,7 @@ import { db } from "../db/client";
 import { users, userCrickets } from "../db/schema";
 import { eq } from "drizzle-orm";
 import { CRICKET_TEMPLATES } from "@taiwu/shared/data/cricket-templates";
-import { generateVariant } from "@taiwu/shared/lib/cricket-utils";
+import { generateVariantByTier } from "../lib/tier-ranges";
 import { passportService } from "../services/passport";
 import { tokenCache } from "../middleware/auth";
 
@@ -194,7 +194,7 @@ async function syncUser(uid: string, nickName: string, avatar?: string): Promise
 
     const inserts = STARTER_TEMPLATE_IDS.map(tid => {
       const template = CRICKET_TEMPLATES.find(t => t.id === tid);
-      const v = template ? generateVariant(template) : { attack: 10, defense: 10, speed: 10, maxHp: 100, maxStamina: 100, spiritBase: 100 };
+      const v = template ? generateVariantByTier(template.tier) : { attack: 10, defense: 10, speed: 10, maxHp: 100, maxStamina: 100, spiritBase: 100 };
       return {
         uid,
         templateId: tid,

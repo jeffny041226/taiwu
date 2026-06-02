@@ -143,9 +143,7 @@ ladderRouter.get("/defense", authMiddleware, async (req, res) => {
           obtained_at: c.obtainedAt,
           template: tmpl ? {
             id: tmpl.id, name: tmpl.name, title: tmpl.title,
-            tier: tmpl.tier, attack: tmpl.attack, defense: tmpl.defense,
-            speed: tmpl.speed, hpBase: tmpl.hpBase, staminaBase: tmpl.staminaBase,
-            spiritBase: tmpl.spiritBase, trait: tmpl.trait,
+            tier: tmpl.tier, trait: tmpl.trait,
             gachaWeight: tmpl.gachaWeight, isActive: tmpl.isActive,
             imageKey: tmpl.imageKey,
           } : null,

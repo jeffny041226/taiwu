@@ -6,12 +6,6 @@ export interface CricketTemplate {
   name: string;
   title: string;
   tier: Tier;
-  attack: number;
-  defense: number;
-  speed: number;
-  hpBase: number;
-  staminaBase: number;
-  spiritBase: number;
   trait: Trait;
   color?: string;
   emoji?: string;
