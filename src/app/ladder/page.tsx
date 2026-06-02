@@ -198,7 +198,7 @@ export default function LadderPage() {
           <div className="fixed inset-0" style={{ backgroundImage: `url(${ASSETS.backgrounds.top100})`, backgroundSize: "cover", backgroundPosition: "center" }} />
 
           {/* Title image — layered above background, outside scroll area */}
-          <div className="absolute top-[90px] left-1/2 -translate-x-1/2 z-20 pointer-events-none" onClick={e => e.stopPropagation()}>
+          <div className="absolute top-[110px] left-1/2 -translate-x-1/2 z-20 pointer-events-none" onClick={e => e.stopPropagation()}>
             <Image src={ASSETS.backgrounds.top100Title} alt="排行榜" width={2730} height={1535} className="w-[99px] h-auto" {...imgProps} />
           </div>
           {/* Close button — above title image */}
@@ -207,8 +207,9 @@ export default function LadderPage() {
           {/* Scrolling content area constrained within top/bottom 150px */}
           <div className="relative z-10 h-full overflow-hidden" onClick={e => e.stopPropagation()}>
             {/* Content container with fixed top/bottom padding */}
-            <div className="absolute inset-0 px-[65px]" style={{ paddingTop: "150px", paddingBottom: "150px" }}>
-              <div className="h-full overflow-y-auto space-y-1">
+            <div className="absolute inset-0 px-[65px] flex flex-col" style={{ paddingTop: "160px", paddingBottom: "80px" }}>
+              {/* 滚动列表 - 只包含 top100 */}
+              <div className="flex-1 overflow-y-auto space-y-1 min-h-0">
                 {top100.map(p => (
                   <div key={p.uid} className={`flex items-center gap-3 px-3 py-2 rounded-lg border ${p.uid === myUid ? "border-[var(--color-gold)]/30" : "border-transparent"}`}>
                     <span className={`w-7 text-center text-[13px] font-bold font-[family-name:var(--font-noto-serif)] ${p.rank <= 3 ? "text-[var(--color-gold)]" : "text-[var(--color-text-secondary)]"}`}>
@@ -220,6 +221,31 @@ export default function LadderPage() {
                   </div>
                 ))}
                 {top100.length === 0 && <p className="text-center text-[var(--color-text-muted)] mt-8">加载中...</p>}
+              </div>
+              {/* 顶部间距 */}
+              <div className="mt-2 flex-shrink-0" />
+              {/* 我的排名 - 固定在底部,不随列表滚动 */}
+              <div className="flex-shrink-0">
+                {(() => {
+                  const me = players.find(p => p.isMe);
+                  return (
+                    <>
+                      {top100.length > 0 && (
+                        <div className="mb-2 flex items-center gap-2 text-[10px] text-[var(--color-gold)]/60 font-[family-name:var(--font-noto-serif)]">
+                          <div className="flex-1 h-px bg-[var(--color-gold)]/20" />
+                          <span>我的排名</span>
+                          <div className="flex-1 h-px bg-[var(--color-gold)]/20" />
+                        </div>
+                      )}
+                      <div className="flex items-center gap-3 px-3 py-2 rounded-lg border border-[var(--color-gold)]/40 bg-[rgba(197,160,89,0.08)]">
+                        <span className="w-7 text-center text-[13px] font-bold text-[var(--color-gold)] font-[family-name:var(--font-noto-serif)]">{myRank > 0 ? myRank : "-"}</span>
+                        <Image src={me?.avatar || "/assets/avatars/avatar-default.png"} alt="" width={32} height={32} className="rounded-full" {...imgProps} />
+                        <span className="flex-1 text-[13px] font-bold text-[var(--color-gold)] font-[family-name:var(--font-noto-serif)] truncate">{me?.nickName || "我"}</span>
+                        <span className="text-[13px] font-bold text-red-500 font-[family-name:var(--font-noto-serif)]">{myPower}</span>
+                      </div>
+                    </>
+                  );
+                })()}
               </div>
             </div>
           </div>
