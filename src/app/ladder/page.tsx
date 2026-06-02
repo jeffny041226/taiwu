@@ -12,6 +12,7 @@ import { ensureAuth } from "@/lib/auth";
 import { getCricketImageUrl } from "@/lib/image-loader";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import { useAudio } from "@/hooks/useAudio";
+import { getTierLabel, getTierColor } from "@taiwu/shared/lib/cricket-utils";
 
 const imgProps = { unoptimized: true };
 
@@ -258,10 +259,7 @@ export default function LadderPage() {
           <div className="flex items-center justify-between px-4 h-[55px] border-b border-[var(--color-gold)]/15" onClick={e => e.stopPropagation()}>
             <button type="button" onClick={() => setChallengeTarget(null)} className="text-[var(--color-text-secondary)] text-[16px] font-[family-name:var(--font-noto-serif)]">取消</button>
             <h2 className="text-[18px] font-bold text-[var(--color-gold)] font-[family-name:var(--font-ma-shan)]">挑战 {challengeTarget.nickName}</h2>
-            <button type="button" onClick={doChallenge} disabled={selectedIds.length !== 3 || challenging}
-              className="h-8 px-3 rounded-lg border border-[var(--color-gold)] bg-gradient-to-b from-[rgba(197,160,89,0.15)] to-[rgba(20,14,10,0.9)] text-[13px] font-bold text-[var(--color-gold)] font-[family-name:var(--font-noto-serif)] disabled:opacity-30 active:scale-95 transition-all">
-              {challenging ? "..." : `挑战(${selectedIds.length}/3)`}
-            </button>
+            <div className="w-[40px]" />
           </div>
           {/* Selected slots */}
           <div className="flex justify-center gap-3 py-3 px-4" onClick={e => e.stopPropagation()}>
@@ -285,7 +283,7 @@ export default function LadderPage() {
             })}
           </div>
           {/* Cricket grid */}
-          <div className="flex-1 overflow-y-auto px-4 pb-4" onClick={e => e.stopPropagation()}>
+          <div className="flex-1 overflow-y-auto px-4 pb-24" onClick={e => e.stopPropagation()}>
             <div className="grid grid-cols-2 gap-2">
               {myCrickets.map((c: any) => {
                 const tmpl = c.template;
@@ -297,7 +295,15 @@ export default function LadderPage() {
                     className={`flex items-center gap-2 p-2 rounded-lg border text-left ${selected ? "border-[var(--color-gold)] bg-[rgba(197,160,89,0.1)] shadow-[0_0_8px_rgba(197,160,89,0.1)]" : "border-white/5 bg-[rgba(20,14,10,0.6)]"}`}>
                     <Image src={src} alt="" width={40} height={32} {...imgProps} className="object-contain flex-shrink-0" />
                     <div className="min-w-0 flex-1">
-                      <p className="text-[13px] font-bold text-[var(--color-text-primary)] truncate">{tmpl.name}</p>
+                      <div className="flex items-center gap-1">
+                        <p className="text-[13px] font-bold text-[var(--color-text-primary)] truncate">{tmpl.name}</p>
+                        <span
+                          className="px-1.5 py-0.5 rounded text-[9px] font-bold flex-shrink-0"
+                          style={{ color: getTierColor(tmpl.tier).text, backgroundColor: getTierColor(tmpl.tier).bg }}
+                        >
+                          {getTierLabel(tmpl.tier)}
+                        </span>
+                      </div>
                       <p className="text-[10px] text-[var(--color-text-muted)]">{tmpl.title}</p>
                       <p className="text-[10px] text-[var(--color-text-secondary)]">攻{c.attack} 防{c.defense} 速{c.speed}</p>
                     </div>
@@ -305,6 +311,13 @@ export default function LadderPage() {
                 );
               })}
             </div>
+          </div>
+          {/* 底部挑战按钮 */}
+          <div className="fixed bottom-0 left-0 right-0 z-20 pb-[34px] flex justify-center px-4" onClick={e => e.stopPropagation()}>
+            <button type="button" onClick={doChallenge} disabled={selectedIds.length !== 3 || challenging}
+              className="w-full h-[50px] rounded-[10px] border border-[var(--color-gold)] bg-gradient-to-b from-[rgba(197,160,89,0.25)] to-[rgba(20,14,10,0.9)] text-[16px] font-bold text-[var(--color-gold)] font-[family-name:var(--font-noto-serif)] disabled:opacity-30 active:scale-[0.98] transition-all shadow-[0_-6px_20px_rgba(0,0,0,0.7)]">
+              {challenging ? "..." : `挑战(${selectedIds.length}/3)`}
+            </button>
           </div>
         </div>
       )}
