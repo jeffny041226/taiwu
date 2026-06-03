@@ -1,5 +1,6 @@
 import { Router, Request, Response } from "express";
 import { authMiddleware } from "../middleware/auth";
+import { asyncHandler } from "../middleware/error-handler";
 import { db } from "../db/client";
 import { users } from "../db/schema";
 import { eq, sql } from "drizzle-orm";
@@ -27,7 +28,7 @@ const orders = new Map<string, { uid: string; product: string; chances: number; 
  * Mock 模式：直接返回 mock 订单
  * 真实模式：调用微信支付统一下单 API
  */
-payRouter.post("/create", authMiddleware, async (req: Request, res: Response) => {
+payRouter.post("/create", authMiddleware, asyncHandler(async (req: Request, res: Response) => {
   const uid = req.user!.uid;
   const { product } = req.body as { product: string };
 
@@ -86,12 +87,12 @@ payRouter.post("/create", authMiddleware, async (req: Request, res: Response) =>
     console.error("[Pay] 微信下单失败:", e.message);
     res.status(500).json({ error: "支付服务暂不可用" });
   }
-});
+}));
 
 /**
  * POST /api/pay/confirm — 支付确认（mock 模式专用）
  */
-payRouter.post("/confirm", authMiddleware, async (req: Request, res: Response) => {
+payRouter.post("/confirm", authMiddleware, asyncHandler(async (req: Request, res: Response) => {
   const uid = req.user!.uid;
   const { order_id } = req.body as { order_id: string };
 
@@ -122,14 +123,14 @@ payRouter.post("/confirm", authMiddleware, async (req: Request, res: Response) =
   console.log(`[Pay] Mock 支付确认 uid=${uid} product=${order.product} +${order.chances}次`);
 
   res.json({ success: true, chances: newChances });
-});
+}));
 
 /**
  * POST /api/pay/notify — 微信支付结果回调
  * Mock 模式：仅记录日志
  * 真实模式：验签 → 解密 → 更新订单
  */
-payRouter.post("/notify", async (req: Request, res: Response) => {
+payRouter.post("/notify", asyncHandler(async (req: Request, res: Response) => {
   const rawBody = JSON.stringify(req.body);
   console.log(`[Pay] 微信回调:`, rawBody.slice(0, 300));
 
@@ -178,12 +179,12 @@ payRouter.post("/notify", async (req: Request, res: Response) => {
 
   res.set("Content-Type", "application/json");
   res.json({ code: "SUCCESS", message: "成功" });
-});
+}));
 
 /**
  * GET /api/pay/status?order_id=xxx — 查询支付状态
  */
-payRouter.get("/status", authMiddleware, async (req: Request, res: Response) => {
+payRouter.get("/status", authMiddleware, asyncHandler(async (req: Request, res: Response) => {
   const uid = req.user!.uid;
   const { order_id } = req.query as { order_id?: string };
 
@@ -222,12 +223,12 @@ payRouter.get("/status", authMiddleware, async (req: Request, res: Response) => 
     console.error("[Pay] 查单失败:", e.message);
     res.json({ paid: false, chances: 0 });
   }
-});
+}));
 
 /**
  * GET /api/pay/chances — 获取当前抽奖次数
  */
-payRouter.get("/chances", authMiddleware, async (req: Request, res: Response) => {
+payRouter.get("/chances", authMiddleware, asyncHandler(async (req: Request, res: Response) => {
   const uid = req.user!.uid;
   const rows = await db
     .select({ chances: users.gachaChances })
@@ -235,7 +236,7 @@ payRouter.get("/chances", authMiddleware, async (req: Request, res: Response) =>
     .where(eq(users.uid, uid))
     .limit(1);
   res.json({ chances: rows[0]?.chances ?? 0 });
-});
+}));
 
 // ── 辅助 ──
 

@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { authMiddleware } from "../middleware/auth";
+import { asyncHandler } from "../middleware/error-handler";
 import { db } from "../db/client";
 import { userCrickets, cricketTemplates } from "../db/schema";
 import { eq, and } from "drizzle-orm";
@@ -14,7 +15,7 @@ export const cricketsRouter = Router();
  * GET /api/crickets — 当前用户的所有蛐蛐
  * 按级别降序 + 获得时间降序
  */
-cricketsRouter.get("/", authMiddleware, async (req, res) => {
+cricketsRouter.get("/", authMiddleware, asyncHandler(async (req, res) => {
   res.set("Cache-Control", "no-store");
   const uid = req.user!.uid;
 
@@ -76,12 +77,12 @@ cricketsRouter.get("/", authMiddleware, async (req, res) => {
     }));
 
   res.json({ crickets });
-});
+}));
 
 /**
  * GET /api/crickets/templates — 所有激活的蛐蛐模板 (元数据,不含个体属性)
  */
-cricketsRouter.get("/templates", async (_req, res) => {
+cricketsRouter.get("/templates", asyncHandler(async (_req, res) => {
   const rows = await db
     .select()
     .from(cricketTemplates)
@@ -100,18 +101,18 @@ cricketsRouter.get("/templates", async (_req, res) => {
     imageKey: t.imageKey,
   }));
   res.json({ templates });
-});
+}));
 
 /**
  * GET /api/crickets/tier-ranges — 4 个级别的 6 个属性区间
  * 给前端 handbook / 展示用。返回结构: { common: { attack: [8,13], ... }, ... }
  */
-cricketsRouter.get("/tier-ranges", async (_req, res) => {
+cricketsRouter.get("/tier-ranges", asyncHandler(async (_req, res) => {
   res.json({ ranges: getAllTierRanges() });
-});
+}));
 
 /** POST /api/crickets/release — 放生一只蛐蛐 */
-cricketsRouter.post("/release", authMiddleware, async (req, res) => {
+cricketsRouter.post("/release", authMiddleware, asyncHandler(async (req, res) => {
   const { cricketId } = req.body as { cricketId: number };
   const uid = req.user!.uid;
 
@@ -120,4 +121,4 @@ cricketsRouter.post("/release", authMiddleware, async (req, res) => {
     .where(and(eq(userCrickets.id, cricketId), eq(userCrickets.uid, uid)));
 
   res.json({ success: true, affectedRows: result[0]?.affectedRows ?? 0 });
-});
+}));

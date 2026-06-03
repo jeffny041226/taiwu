@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { authMiddleware } from "../middleware/auth";
+import { asyncHandler } from "../middleware/error-handler";
 import { db } from "../db/client";
 import { users, userCrickets, cricketTemplates } from "../db/schema";
 import { eq, gt, desc, inArray, and, count } from "drizzle-orm";
@@ -7,7 +8,7 @@ import { eq, gt, desc, inArray, and, count } from "drizzle-orm";
 export const ladderRouter = Router();
 
 /** GET /api/ladder/top100 — 战力前100名 */
-ladderRouter.get("/top100", authMiddleware, async (_req, res) => {
+ladderRouter.get("/top100", authMiddleware, asyncHandler(async (_req, res) => {
   const rows = await db
     .select({
       uid: users.uid,
@@ -28,10 +29,10 @@ ladderRouter.get("/top100", authMiddleware, async (_req, res) => {
   }));
 
   res.json({ list });
-});
+}));
 
 /** GET /api/ladder/position — 当前用户排名 + 上下各5人 */
-ladderRouter.get("/position", authMiddleware, async (req, res) => {
+ladderRouter.get("/position", authMiddleware, asyncHandler(async (req, res) => {
   const uid = req.user!.uid;
 
   const meRows = await db
@@ -92,10 +93,10 @@ ladderRouter.get("/position", authMiddleware, async (req, res) => {
     myLosses,
     list,
   });
-});
+}));
 
 /** GET /api/ladder/defense — 获取防守阵容 */
-ladderRouter.get("/defense", authMiddleware, async (req, res) => {
+ladderRouter.get("/defense", authMiddleware, asyncHandler(async (req, res) => {
   const uid = req.user!.uid;
 
   const userRows = await db
@@ -153,10 +154,10 @@ ladderRouter.get("/defense", authMiddleware, async (req, res) => {
   }
 
   res.json({ cricketIds, crickets });
-});
+}));
 
 /** PUT /api/ladder/defense — 保存防守阵容 */
-ladderRouter.put("/defense", authMiddleware, async (req, res) => {
+ladderRouter.put("/defense", authMiddleware, asyncHandler(async (req, res) => {
   const uid = req.user!.uid;
   const { cricketIds } = req.body as { cricketIds: number[] };
 
@@ -181,4 +182,4 @@ ladderRouter.put("/defense", authMiddleware, async (req, res) => {
     .where(eq(users.uid, uid));
 
   res.json({ success: true, cricketIds });
-});
+}));

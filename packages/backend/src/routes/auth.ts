@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { asyncHandler } from "../middleware/error-handler";
 import { db } from "../db/client";
 import { users, userCrickets } from "../db/schema";
 import { eq } from "drizzle-orm";
@@ -10,7 +11,7 @@ import { tokenCache } from "../middleware/auth";
 export const authRouter = Router();
 
 /** POST /api/auth/send-code — 发送短信验证码 */
-authRouter.post("/send-code", async (req, res) => {
+authRouter.post("/send-code", asyncHandler(async (req, res) => {
   const { mobile } = req.body as { mobile: string };
 
   if (!mobile) {
@@ -31,10 +32,10 @@ authRouter.post("/send-code", async (req, res) => {
     console.warn("[Auth] 发送验证码失败:", e.message);
     res.status(400).json({ error: e.message || "发送验证码失败" });
   }
-});
+}));
 
 /** POST /api/auth/login — 验证码登录 */
-authRouter.post("/login", async (req, res) => {
+authRouter.post("/login", asyncHandler(async (req, res) => {
   const { mobile, code } = req.body as { mobile: string; code: string };
 
   if (!mobile || !code) {
@@ -85,10 +86,10 @@ authRouter.post("/login", async (req, res) => {
   tokenCache.set(passportToken, { uid, nickName, avatar: avatar || "" });
 
   res.json({ token: passportToken, uid, nickName, avatar: avatar || "" });
-});
+}));
 
 /** POST /api/auth/verify — 验证 Token 有效性 */
-authRouter.post("/verify", async (req, res) => {
+authRouter.post("/verify", asyncHandler(async (req, res) => {
   const { token } = req.body as { token: string };
 
   if (!token) {
@@ -135,10 +136,10 @@ authRouter.post("/verify", async (req, res) => {
   tokenCache.set(token, { uid: verified.uid, nickName, avatar });
 
   res.json({ uid: verified.uid, nickName, avatar });
-});
+}));
 
 /** POST /api/auth/callback — 外部登录回调，接收 sz_t 解析后的 token+uid，同步用户信息 */
-authRouter.post("/callback", async (req, res) => {
+authRouter.post("/callback", asyncHandler(async (req, res) => {
   const { token, uid } = req.body as { token: string; uid: string };
 
   if (!token || !uid) {
@@ -166,7 +167,7 @@ authRouter.post("/callback", async (req, res) => {
   tokenCache.set(token, { uid, nickName, avatar });
 
   res.json({ uid, nickName, avatar });
-});
+}));
 
 // ── 辅助:创建/更新用户 + 新用户赠送起始蛐蛐 ──
 
@@ -179,18 +180,15 @@ async function syncUser(uid: string, nickName: string, avatar?: string): Promise
 
   if (!existing) {
     // 新用户 → INSERT users + 赠送 3 只起始蛐蛐
-    try {
-      await db.insert(users).values({
-        uid,
-        nickName: nickName || "",
-        username: null,
-        passwordHash: null,
-        token: uid,
-        avatar: avatar || DEFAULT_AVATAR,
-      });
-    } catch (e: any) {
-      console.error("[Auth] 创建用户失败:", e.message);
-    }
+    // 注: 不 catch 异常 — 让错误传播到 asyncHandler → errorHandler, 前端可感知
+    await db.insert(users).values({
+      uid,
+      nickName: nickName || "",
+      username: null,
+      passwordHash: null,
+      token: uid,
+      avatar: avatar || DEFAULT_AVATAR,
+    });
 
     const inserts = STARTER_TEMPLATE_IDS.map(tid => {
       const template = CRICKET_TEMPLATES.find(t => t.id === tid);
@@ -206,11 +204,7 @@ async function syncUser(uid: string, nickName: string, avatar?: string): Promise
         spiritBase: v.spiritBase,
       };
     });
-    try {
-      await db.insert(userCrickets).values(inserts);
-    } catch (e: any) {
-      console.error("[Auth] 插入起始蛐蛐失败:", e.message);
-    }
+    await db.insert(userCrickets).values(inserts);
     return;
   }
 

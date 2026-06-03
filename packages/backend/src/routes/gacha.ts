@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { authMiddleware } from "../middleware/auth";
+import { asyncHandler } from "../middleware/error-handler";
 import { db } from "../db/client";
 import { users, userCrickets, cricketTemplates } from "../db/schema";
 import { eq, inArray, sql } from "drizzle-orm";
@@ -9,7 +10,7 @@ import { generateVariantByTier } from "../lib/tier-ranges";
 
 export const gachaRouter = Router();
 
-gachaRouter.post("/pull", authMiddleware, async (req, res) => {
+gachaRouter.post("/pull", authMiddleware, asyncHandler(async (req, res) => {
   const { count } = req.body as { count: 1 | 5 | 10 };
   const uid = req.user!.uid;
 
@@ -81,14 +82,14 @@ gachaRouter.post("/pull", authMiddleware, async (req, res) => {
   await deductGachaChances(uid, count);
 
   res.json({ results, count });
-});
+}));
 
 /** GET /api/gacha/chances — 获取抽奖次数 */
-gachaRouter.get("/chances", authMiddleware, async (req, res) => {
+gachaRouter.get("/chances", authMiddleware, asyncHandler(async (req, res) => {
   const uid = req.user!.uid;
   const chances = await getGachaChances(uid);
   res.json({ chances });
-});
+}));
 
 // ── 辅助:抽奖次数 CRUD ──
 

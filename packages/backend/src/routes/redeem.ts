@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { authMiddleware } from "../middleware/auth";
+import { asyncHandler } from "../middleware/error-handler";
 import { db } from "../db/client";
 import { redeemCodes, users, userCrickets } from "../db/schema";
 import { eq, and } from "drizzle-orm";
@@ -36,7 +37,7 @@ function generateCode(): string {
  * Body: { templateId: number }
  * 生成一个可用的兑换码并入库
  */
-redeemRouter.post("/generate", authMiddleware, async (req, res) => {
+redeemRouter.post("/generate", authMiddleware, asyncHandler(async (req, res) => {
   const { templateId } = req.body as { templateId: number };
 
   const template = CRICKET_TEMPLATES.find(t => t.id === templateId);
@@ -61,14 +62,14 @@ redeemRouter.post("/generate", authMiddleware, async (req, res) => {
   }
 
   res.status(500).json({ error: "生成失败(冲突次数过多),请稍后重试" });
-});
+}));
 
 /**
  * POST /api/redeem/preview
  * Body: { code: string }
  * 预览兑换码对应的蛐蛐，不消耗
  */
-redeemRouter.post("/preview", authMiddleware, async (req, res) => {
+redeemRouter.post("/preview", authMiddleware, asyncHandler(async (req, res) => {
   const { code } = req.body as { code: string };
 
   if (!code || typeof code !== "string") {
@@ -106,7 +107,7 @@ redeemRouter.post("/preview", authMiddleware, async (req, res) => {
     console.error("[redeem] preview 失败:", e?.message);
     res.status(500).json({ error: "查询失败,请稍后重试" });
   }
-});
+}));
 
 /**
  * POST /api/redeem/use
@@ -114,7 +115,7 @@ redeemRouter.post("/preview", authMiddleware, async (req, res) => {
  * 使用兑换码，兑换蛐蛐
  */
 redeemRouter.use("/use", authMiddleware);
-redeemRouter.post("/use", async (req, res) => {
+redeemRouter.post("/use", asyncHandler(async (req, res) => {
   const { code } = req.body as { code: string };
   const uid = req.user!.uid;
 
@@ -223,4 +224,4 @@ redeemRouter.post("/use", async (req, res) => {
       },
     },
   });
-});
+}));
