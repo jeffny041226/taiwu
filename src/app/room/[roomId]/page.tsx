@@ -260,9 +260,9 @@ export default function RoomPage() {
       {/* 等待阶段 */}
       {phase === "waiting" && (
         <div className="flex flex-col items-center gap-2 pt-6">
-          <div className="text-[48px] font-[family-name:var(--font-ma-shan)] text-[var(--color-gold)]/30">⚔</div>
-          <p className="text-[16px] text-[var(--color-text-secondary)] font-[family-name:var(--font-noto-serif)]">等待对手加入...</p>
-          <p className="text-[13px] text-[var(--color-text-muted)] font-[family-name:var(--font-noto-serif)]">将房间号分享给好友即可开始对战</p>
+          <div className="text-[48px] font-[family-name:var(--font-ma-shan)] text-[var(--color-gold)]/55 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">⚔</div>
+          <p className="text-[16px] font-bold text-white font-[family-name:var(--font-noto-serif)] drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">等待对手加入...</p>
+          <p className="text-[13px] text-[var(--color-gold)]/85 font-[family-name:var(--font-noto-serif)] drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">将房间号分享给好友即可开始对战</p>
           {errorMsg && <p className="text-[13px] text-red-400">{errorMsg}</p>}
         </div>
       )}
@@ -275,13 +275,13 @@ export default function RoomPage() {
             <div className="w-[48px] h-[48px] rounded-full border-2 border-[var(--color-gold)]/60 flex items-center justify-center bg-[rgba(20,14,10,0.8)]">
               <span className={"text-[28px] font-[family-name:var(--font-ma-shan)] " + (count <= 5 ? "text-red-400 animate-pulse" : "text-[var(--color-gold)]")}>{count}</span>
             </div>
-            <span className="text-[12px] text-[var(--color-text-muted)] font-[family-name:var(--font-noto-serif)]">选蛐蛐倒计时</span>
+            <span className="text-[12px] text-white font-[family-name:var(--font-noto-serif)] drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">选蛐蛐倒计时</span>
 
             {/* 对手状态 */}
             {opponent && (
               <div className="ml-4 flex items-center gap-1.5">
-                <div className={"w-2.5 h-2.5 rounded-full " + (opponentReady ? "bg-green-400 animate-pulse" : "bg-[var(--color-text-muted)]")} />
-                <span className="text-[11px] font-[family-name:var(--font-noto-serif)]">
+                <div className={"w-2.5 h-2.5 rounded-full " + (opponentReady ? "bg-green-400 animate-pulse" : "bg-white/40")} />
+                <span className="text-[11px] font-bold text-white font-[family-name:var(--font-noto-serif)] drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">
                   {opponentReady ? "对手已就绪" : "对手选蛐蛐中..."}
                 </span>
               </div>
@@ -301,10 +301,10 @@ export default function RoomPage() {
                     {tmpl ? (
                       <>
                         <Image src={getCricketImageUrl(tmpl.imageKey, tmpl.id)} alt={tmpl.name} width={32} height={28} unoptimized className="object-contain" />
-                        <span className="text-[8px] truncate max-w-[50px]" style={{ color: tierColorMap[tmpl.tier] }}>{tmpl.name}</span>
+                        <span className="text-[9px] font-bold truncate max-w-[50px] drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]" style={{ color: tierColorMap[tmpl.tier] }}>{tmpl.name}</span>
                       </>
                     ) : (
-                      <span className="text-[20px] text-[var(--color-text-muted)]/30 font-[family-name:var(--font-ma-shan)]">?</span>
+                      <span className="text-[20px] text-white/35 font-[family-name:var(--font-ma-shan)]">?</span>
                     )}
                   </div>
                 );
@@ -335,10 +335,10 @@ export default function RoomPage() {
                         <span className="text-[13px] font-bold truncate font-[family-name:var(--font-noto-serif)]" style={{ color: tierColorMap[tmpl.tier] }}>{tmpl.name}</span>
                         <span className="text-[8px] px-1 rounded" style={{ color: tierColorMap[tmpl.tier], backgroundColor: tierColorMap[tmpl.tier] + "18" }}>{TIER_LABELS[tmpl.tier]}</span>
                       </div>
-                      <span className="text-[10px] text-[var(--color-text-secondary)] font-[family-name:var(--font-ma-shan)]">{tmpl.title}</span>
+                      <span className="text-[10px] text-white/80 font-[family-name:var(--font-ma-shan)] drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">{tmpl.title}</span>
                       <div className="flex items-center gap-1 mt-0.5">
-                        <span className="text-[8px] px-1 rounded bg-[rgba(197,160,89,0.06)] text-[var(--color-gold)]/80">{TRAIT_LABELS[tmpl.trait]}</span>
-                        <span className="text-[9px] text-[var(--color-text-muted)]">攻{c.attack} 防{c.defense} 速{c.speed}</span>
+                        <span className="text-[8px] px-1 rounded bg-[rgba(197,160,89,0.18)] text-[var(--color-gold)] font-bold">{TRAIT_LABELS[tmpl.trait]}</span>
+                        <span className="text-[9px] font-bold text-white font-[family-name:var(--font-noto-serif)] drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">攻{c.attack} 防{c.defense} 速{c.speed}</span>
                       </div>
                     </div>
                   </button>
