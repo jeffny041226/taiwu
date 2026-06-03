@@ -858,7 +858,7 @@ export default function BattlePage({ params }: { params: Promise<{ roomId: strin
       {/* 对战区 */}
       <div className="absolute top-[208px] bottom-[182px] left-0 right-0 z-5 flex items-center justify-center overflow-hidden">
         <div className="relative w-[450px] h-[450px] flex items-center justify-center">
-          <Image src="/assets/ui/arena/arena-circle.png" alt="" width={450} height={450} unoptimized className="absolute" />
+          <Image src="/assets/ui/arena/arena-circle.png?v=2" alt="" width={450} height={450} unoptimized className="absolute" style={{ filter: "drop-shadow(0 14px 22px rgba(0,0,0,0.55)) drop-shadow(0 5px 10px rgba(0,0,0,0.4)) drop-shadow(0 0 2px rgba(0,0,0,0.35))" }} />
 
           {/* ── 特效层 ── */}
           {/* 猛击: 冲击波 (撞击点) */}

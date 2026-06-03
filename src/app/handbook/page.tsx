@@ -111,8 +111,8 @@ export default function HandbookPage() {
                       style={{ color: tierColor, backgroundColor: `${tierColor}30` }}>{TIER_LABELS[tmpl.tier]}</div>
 
                     {/* 蛐蛐图片 */}
-                    <div className={`w-[120px] h-[60px] mt-4 mb-1 flex items-center justify-center ${!owned ? "grayscale opacity-60" : ""}`}>
-                      <Image src={templateImage(tmpl)} alt={tmpl.name} width={120} height={60} {...imgProps} className="object-contain" />
+                    <div className={`w-[110px] h-[80px] mt-4 mb-1 flex items-center justify-center overflow-hidden ${!owned ? "grayscale opacity-60" : ""}`}>
+                      <Image src={templateImage(tmpl)} alt={tmpl.name} width={80} height={80} {...imgProps} className="object-contain" />
                     </div>
 
                     {/* 名称 + 称号 */}
@@ -123,7 +123,7 @@ export default function HandbookPage() {
 
                     {/* 级别区间 (抽/兑在此范围内随机) */}
                     {stats && (
-                      <p className="text-[8px] text-[var(--color-text-muted)] font-[family-name:var(--font-noto-serif)] text-center px-2 leading-tight mt-1">
+                      <p className="text-[8px] text-white font-[family-name:var(--font-noto-serif)] text-center px-2 leading-tight mt-1">
                         攻{stats.attack} 防{stats.defense} 速{stats.speed}
                         <br />
                         血{stats.maxHp} 耐{stats.maxStamina} 势{stats.spiritBase}

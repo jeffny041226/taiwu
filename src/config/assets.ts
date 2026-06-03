@@ -23,7 +23,7 @@ export const ASSETS = {
 
   ui: {
     arena: {
-      circle:    "/assets/ui/arena/arena-circle.png",
+      circle:    "/assets/ui/arena/arena-circle.png?v=2",
       ring:      "/assets/ui/arena/arena-ring.png",
       dou:       "/assets/ui/arena/arena-dou.png",
       benchDisc: "/assets/ui/arena/bench-disc.png",
