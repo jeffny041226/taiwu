@@ -6,6 +6,7 @@ import { TopBar } from "@/components/layout/TopBar";
 import { LoadingOverlay } from "@/components/game/LoadingOverlay";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import { ensureAuth, getLoginUrl } from "@/lib/auth";
+import { ASSETS } from "@/config/assets";
 
 const imgProps = { unoptimized: true };
 const btnClass =
@@ -85,7 +86,9 @@ export default function RoomCreatePage() {
   const isLoading = action === "creating";
 
   return (
-    <div className="relative w-full min-h-[100dvh] bg-[var(--color-bg-base)]">
+    <div className="relative w-full min-h-[100dvh]">
+      <div className="fixed inset-0 -z-10" style={{ backgroundImage: `url(${ASSETS.backgrounds.roomCreate})`, backgroundSize: "cover", backgroundPosition: "center" }} />
+      <div className="fixed inset-0 -z-10 bg-black/40" />
       <TopBar title="创建 / 加入房间" backHref="/" />
 
       <div className="relative z-[10] flex flex-col items-center pt-8 px-4">

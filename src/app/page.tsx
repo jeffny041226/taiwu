@@ -129,7 +129,7 @@ export default function HomePage() {
   return (
     <div className="relative w-full h-[100dvh] overflow-hidden">
       <Image
-        src="/assets/backgrounds/bg-home.webp"
+        src="/assets/backgrounds/bg-home.webp?v=3"
         alt=""
         fill
         {...imgProps}

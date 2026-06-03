@@ -7,11 +7,15 @@
  */
 export const ASSETS = {
   backgrounds: {
-    home:     "/assets/backgrounds/bg-home.webp?v=2",
+    home:     "/assets/backgrounds/bg-home.webp?v=3",
     market:   "/assets/backgrounds/bg-market.webp?v=2",
     backpack: "/assets/backgrounds/bg-backpack.webp?v=2",
     battle:   "/assets/backgrounds/bg-battle.webp?v=2",
-    room:     "/assets/backgrounds/bg-room.webp?v=2",
+    room:     "/assets/backgrounds/bg-room.webp?v=3",
+    matchmake:    "/assets/backgrounds/bg-matchmake.webp",
+    handbook:     "/assets/backgrounds/bg-handbook.webp",
+    defense:      "/assets/backgrounds/bg-defense.webp",
+    roomCreate:   "/assets/backgrounds/bg-room-create.webp",
     ladder:   "/assets/backgrounds/bg-ladder.webp",
     top100:   "/assets/backgrounds/bg-top100.webp",
     top100Title: "/assets/backgrounds/bg-top100-title.webp",

@@ -10,6 +10,7 @@ import { getCricketImageUrl } from "@/lib/image-loader";
 import { TIER_COLORS, TIER_LABELS } from "@taiwu/shared/config/game";
 import type { CricketTemplate, Tier } from "@taiwu/shared/types/cricket";
 import { formatTierRangeStats } from "@taiwu/shared/lib/cricket-utils";
+import { ASSETS } from "@/config/assets";
 
 const imgProps = { unoptimized: true };
 
@@ -78,7 +79,7 @@ export default function HandbookPage() {
 
   return (
     <div className="w-full min-h-[100dvh]">
-      <div className="fixed inset-0 -z-10" style={{ backgroundImage: "url(/assets/backgrounds/bg-backpack.webp)", backgroundSize: "cover", backgroundPosition: "center", backgroundAttachment: "fixed" }} />
+      <div className="fixed inset-0 -z-10" style={{ backgroundImage: `url(${ASSETS.backgrounds.handbook})`, backgroundSize: "cover", backgroundPosition: "center", backgroundAttachment: "fixed" }} />
       <div className="fixed inset-0 -z-10" style={{ backgroundColor: "rgba(0,0,0,0.4)" }} />
       <div className="relative z-10">
         <TopBar title="图鉴" backHref="/" />

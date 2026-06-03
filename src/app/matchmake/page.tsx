@@ -7,6 +7,7 @@ import { MapleLeaves } from "@/components/game/MapleLeaves";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import { useAudio } from "@/hooks/useAudio";
 import { ensureAuth, getLoginUrl } from "@/lib/auth";
+import { ASSETS } from "@/config/assets";
 
 const imgProps = { unoptimized: true };
 
@@ -138,7 +139,8 @@ function MatchmakeContent() {
 
   return (
     <div className="relative w-full h-[100dvh] overflow-hidden">
-      <div className="absolute inset-0 bg-[var(--color-bg-base)]" />
+      <div className="absolute inset-0" style={{ backgroundImage: `url(${ASSETS.backgrounds.matchmake})`, backgroundSize: "cover", backgroundPosition: "center" }} />
+      <div className="absolute inset-0 bg-black/40" />
       <MapleLeaves />
 
       <header className="relative z-[10] flex items-center justify-between px-4 h-[60px]">

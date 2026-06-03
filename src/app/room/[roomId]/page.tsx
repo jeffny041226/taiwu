@@ -14,6 +14,7 @@ import { ensureAuth, getLoginUrl } from "@/lib/auth";
 import { api } from "@/lib/api";
 import { getCricketImageUrl } from "@/lib/image-loader";
 import type { CricketTemplate, Tier } from "@taiwu/shared/types/cricket";
+import { ASSETS } from "@/config/assets";
 
 interface RoomPlayer {
   uid: string;
@@ -243,7 +244,9 @@ export default function RoomPage() {
   };
 
   return (
-    <div className="relative w-full min-h-[100dvh] bg-[var(--color-bg-base)]">
+    <div className="relative w-full min-h-[100dvh]">
+      <div className="fixed inset-0 -z-10" style={{ backgroundImage: `url(${ASSETS.backgrounds.room})`, backgroundSize: "cover", backgroundPosition: "center" }} />
+      <div className="fixed inset-0 -z-10 bg-black/40" />
       <TopBar title={phase === "ready" ? "选蛐蛐" : "房间"} backHref="/" />
 
       {/* 房间号 + 对战模式 */}

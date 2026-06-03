@@ -12,6 +12,7 @@ import { getCricketImageUrl } from "@/lib/image-loader";
 import type { CricketTemplate } from "@taiwu/shared/types/cricket";
 import { TIER_COLORS, TIER_LABELS } from "@taiwu/shared/config/game";
 import type { Tier } from "@taiwu/shared/types/cricket";
+import { ASSETS } from "@/config/assets";
 
 const imgProps = { unoptimized: true };
 
@@ -70,8 +71,8 @@ export default function DefensePage() {
   if (loading) return <LoadingOverlay visible message="加载中..." />;
 
   return (
-    <div className="relative w-full min-h-[100dvh] bg-[var(--color-bg-base)]">
-      <div className="fixed inset-0 -z-10" style={{ backgroundImage: "url(/assets/backgrounds/bg-backpack.webp)", backgroundSize: "cover", backgroundPosition: "center" }} />
+    <div className="relative w-full min-h-[100dvh]">
+      <div className="fixed inset-0 -z-10" style={{ backgroundImage: `url(${ASSETS.backgrounds.defense})`, backgroundSize: "cover", backgroundPosition: "center" }} />
       <div className="fixed inset-0 -z-10 bg-black/50" />
 
       <TopBar title="布阵" backHref="/ladder" />
