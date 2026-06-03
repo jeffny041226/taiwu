@@ -6,8 +6,11 @@ node_modules
 .DS_Store
 .claude
 .reasonix
+.agents
 temp
 scripts
 minimax-output
 .cricket-*.swp
 .cricket-*.swo
+.codegraph
+reasonix.toml

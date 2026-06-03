@@ -15,6 +15,7 @@ export const cricketsRouter = Router();
  * 按级别降序 + 获得时间降序
  */
 cricketsRouter.get("/", authMiddleware, async (req, res) => {
+  res.set("Cache-Control", "no-store");
   const uid = req.user!.uid;
 
   const rows = await db
